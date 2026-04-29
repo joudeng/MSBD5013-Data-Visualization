@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resident Financial Profile - Parallel Coordinates</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; }
+        .sidebar { width: 280px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .sidebar h2 { margin: 0 0 20px 0; font-size: 18px; color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
+        .filter-section { margin-bottom: 25px; }
+        .filter-section h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+        .filter-section select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        .filter-section select:focus { outline: none; border-color: #4CAF50; }
+        .filter-section label { font-size: 13px; color: #333; cursor: pointer; }
+        .filter-section input[type="checkbox"] { margin-right: 10px; cursor: pointer; }
+        .filter-section input[type="range"] { width: 100%; margin: 10px 0; }
+        .range-values { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+        .checkbox-item { display: flex; align-items: center; margin: 8px 0; }
+        .checkbox-item:hover label { color: #4CAF50; }
+        .chart-area { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .chart-area h1 { margin: 0 0 20px 0; font-size: 22px; color: #333; }
+        .stats-info { font-size: 14px; color: #666; margin-bottom: 20px; padding: 10px; background: #e8f5e9; border-radius: 4px; }
+        #chart { width: 100%; height: 550px; }
+        .tooltip { position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 12px 16px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; max-width: 450px; }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-title { font-weight: bold; color: #333; margin-bottom: 8px; font-size: 14px; }
+        .tooltip-row { margin: 4px 0; color: #555; display: flex; justify-content: space-between; }
+        .tooltip-row span { font-weight: 600; color: #333; }
+        .tooltip-content { display: flex; gap: 15px; margin-top: 10px; }
+        .tooltip-pie-section { flex: 0 0 130px; text-align: center; }
+        .tooltip-pie { width: 120px; height: 120px; margin: 0 auto; }
+        .tooltip-pie-title { font-size: 11px; color: #666; margin-top: 5px; font-weight: 500; }
+        .tooltip-details-section { flex: 1; }
+        .tooltip-section-title { font-size: 11px; color: #333; font-weight: 600; margin-bottom: 5px; }
+        .tooltip-divider { border-top: 1px solid #eee; margin: 8px 0; }
+        .tooltip-warning { color: #e74c3c; font-size: 11px; margin-top: 5px; }
+        .legend { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+        .legend-item:hover { color: #4CAF50; }
+        .legend-circle { width: 12px; height: 12px; border-radius: 50%; }
+        .preset-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
+        .preset-btn { padding: 5px 10px; border: 1px solid #4CAF50; background: white; color: #4CAF50; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        .preset-btn:hover, .preset-btn.active { background: #4CAF50; color: white; }
+        .mode-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+        .mode-btn { padding: 6px 12px; border: 1px solid #4CAF50; background: white; color: #4CAF50; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .mode-btn.active { background: #4CAF50; color: white; }
+        .slider-container { margin-top: 10px; }
+        .slider-value { text-align: center; font-weight: 500; font-size: 13px; color: #4CAF50; }
+        .reset-btn { padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 15px; }
+        .reset-btn:hover { background: #d32f2f; }
+        .axis-title { font-size: 12px; font-weight: 600; fill: #333; }
+        .brush .selection { fill: rgba(100, 100, 100, 0.2); stroke: #888; }
+        .median-line { fill: none; stroke-linecap: round; }
+        .median-line.dimmed { stroke-opacity: 0.2; }
+        .iqr-band { fill-opacity: 0.1; transition: fill-opacity 0.2s; }
+        .iqr-band.dimmed { fill-opacity: 0.03; }
+        .iqr-band.highlighted { fill-opacity: 0.15; }
+        .individual-line { fill: none; stroke-width: 1px; stroke-opacity: 0.18; }
+        .individual-line.highlighted { stroke-width: 2.5px; stroke-opacity: 1; }
+        .individual-line.dimmed { stroke-opacity: 0.05; stroke: #ccc; }
+        .group-label { font-size: 11px; font-weight: 500; }
+        .leader-line { stroke: #999; stroke-width: 1; stroke-opacity: 0.5; }
+        .toggle-section { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+        .toggle-label { font-size: 13px; color: #333; }
+        .toggle-switch { position: relative; width: 40px; height: 20px; background: #ccc; border-radius: 10px; cursor: pointer; transition: background 0.2s; }
+        .toggle-switch.active { background: #4CAF50; }
+        .toggle-switch::after { content: ''; position: absolute; width: 16px; height: 16px; background: white; border-radius: 8px; top: 2px; left: 2px; transition: left 0.2s; }
+        .toggle-switch.active::after { left: 22px; }
+        .stats-panel { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+        .stats-panel h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .stat-item { background: #f5f5f5; padding: 8px; border-radius: 4px; }
+        .stat-label { font-size: 11px; color: #888; }
+        .stat-value { font-size: 14px; font-weight: 600; color: #333; }
+        .pie-food { fill: #f39c12; }
+        .pie-shelter { fill: #e74c3c; }
+        .pie-recreation { fill: #9b59b6; }
+        .pie-education { fill: #3498db; }
+        .pie-other { fill: #95a5a6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Filters & Controls</h2>
+            <div class="filter-section">
+                <h3>Data Mode</h3>
+                <select id="dataMode">
+                    <option value="all">All months (Aggregated)</option>
+                    <option value="2022-03">2022-03</option>
+                    <option value="2022-04">2022-04</option>
+                    <option value="2022-05">2022-05</option>
+                    <option value="2022-06">2022-06</option>
+                    <option value="2022-07">2022-07</option>
+                    <option value="2022-08">2022-08</option>
+                    <option value="2022-09">2022-09</option>
+                    <option value="2022-10">2022-10</option>
+                    <option value="2022-11">2022-11</option>
+                    <option value="2022-12">2022-12</option>
+                    <option value="2023-01">2023-01</option>
+                    <option value="2023-02">2023-02</option>
+                    <option value="2023-03">2023-03</option>
+                    <option value="2023-04">2023-04</option>
+                    <option value="2023-05">2023-05</option>
+                </select>
+            </div>
+            <div class="filter-section">
+                <h3>Display Mode</h3>
+                <div class="mode-buttons">
+                    <button class="mode-btn active" id="consumptionTypeMode">Consumption Type</button>
+                    <button class="mode-btn" id="householdTypeMode">Household Type</button>
+                    <button class="mode-btn" id="individualMode">Individual</button>
+                </div>
+                <div class="slider-container" id="sliderControl" style="display: none;">
+                    <label style="font-size: 13px; color: #333;">Sample Size:</label>
+                    <input type="range" id="sampleSlider" min="20" max="200" value="50" step="10">
+                    <div class="range-values"><span>20</span><span class="slider-value" id="sliderValue">50</span><span>200</span></div>
+                </div>
+            </div>
+            <div class="filter-section">
+                <h3>Color By</h3>
+                <select id="colorBy">
+                    <option value="consumption_type">Consumption Type</option>
+                    <option value="household_type">Household Type</option>
+                    <option value="educationLevel">Education Level</option>
+                    <option value="age_group">Age Group</option>
+                    <option value="financial_status">Financial Status</option>
+                </select>
+            </div>
+            <div class="filter-section">
+                <h3>Preset Filters</h3>
+                <div class="preset-buttons" id="presetButtons">
+                    <button class="preset-btn active" data-filter="all">All Residents</button>
+                    <button class="preset-btn" data-filter="high_shelter">High Shelter</button>
+                    <button class="preset-btn" data-filter="high_food">High Food</button>
+                    <button class="preset-btn" data-filter="high_recreation">High Recreation</button>
+                    <button class="preset-btn" data-filter="high_education">High Education</button>
+                    <button class="preset-btn" data-filter="high_expense_ratio">High Expense Ratio</button>
+                    <button class="preset-btn" data-filter="low_savings">Low Savings</button>
+                    <button class="preset-btn" data-filter="have_kids">Have Kids</button>
+                    <button class="preset-btn" data-filter="no_kids">No Kids</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <h3>Axes Selection</h3>
+                <div id="axisCheckboxes"></div>
+            </div>
+            <div class="filter-section toggle-section">
+                <span class="toggle-label">IQR Band:</span>
+                <div class="toggle-switch active" id="iqrToggle"></div>
+            </div>
+            <button class="reset-btn" id="resetBtn">Reset All</button>
+            <div class="stats-panel" id="statsPanel">
+                <h3>Statistics</h3>
+                <div class="stats-grid" id="statsGrid"></div>
+            </div>
+        </div>
+        <div class="chart-area">
+            <h1>Resident Financial Profile by Consumption Type</h1>
+            <div class="stats-info" id="statsInfo">Showing all residents with aggregated monthly data. Hover over lines to see expense structure pie chart.</div>
+            <div id="chart"></div>
+            <div class="legend" id="legend"></div>
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+    </div>
+    <script>
+        let rawData = [], processedData = [], filteredData = [];
+        let activeAxes = [], brushes = {}, yScales = {};
+        let currentMode = 'consumption_type', currentFilter = 'all', currentColorBy = 'consumption_type';
+        let sampleSize = 50, showIQR = true, highlightedGroup = null, expense10thPercentile = 0;
+        
+        const consumptionTypeColors = {
+            'Shelter-heavy': '#e74c3c', 'Food-dominant': '#f39c12', 'Recreation-heavy': '#9b59b6',
+            'Education-heavy': '#3498db', 'Balanced': '#27ae60', 'Low-spending': '#95a5a6'
+        };
+        const financialStatusColors = { 'High-savings': '#27ae60', 'Medium-savings': '#3498db', 'Low-savings': '#f39c12', 'Financial-stress': '#e74c3c' };
+        const educationColors = { 'Low': '#e74c3c', 'HighSchoolOrCollege': '#f39c12', 'Bachelors': '#3498db', 'Graduate': '#27ae60' };
+        const ageGroupColors = { '18-25': '#9b59b6', '26-35': '#3498db', '36-45': '#27ae60', '46-55': '#f39c12', '56-60': '#e74c3c' };
+        const householdTypeColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+        
+        const pieColors = { 'food': '#f39c12', 'shelter': '#e74c3c', 'recreation': '#9b59b6', 'education': '#3498db', 'other': '#95a5a6' };
+        
+        const allAxes = [
+            { id: 'expense', name: 'Expense', type: 'currency', default: true, order: 1 },
+            { id: 'expense_income_ratio', name: 'Expense/Income', type: 'ratio', default: true, order: 2 },
+            { id: 'savings_rate', name: 'Savings Rate', type: 'ratio', default: true, order: 3 },
+            { id: 'income', name: 'Income', type: 'currency', default: true, order: 4 },
+            { id: 'avg_availableBalance', name: 'Balance', type: 'currency', default: true, order: 5 },
+            { id: 'age', name: 'Age', type: 'numeric', default: true, order: 6 },
+            { id: 'householdSize', name: 'Household Size', type: 'numeric', default: true, order: 7 }
+        ];
+        const defaultAxes = allAxes.filter(a => a.default).sort((a, b) => a.order - b.order).map(a => a.id);
+        
+        function translateType(type) {
+            const map = {
+                'Shelter-heavy': 'Shelter Heavy', 'Food-dominant': 'Food Dominant', 'Recreation-heavy': 'Recreation Heavy',
+                'Education-heavy': 'Education Heavy', 'Balanced': 'Balanced', 'Low-spending': 'Low Spending / Insufficient Data',
+                'High-savings': 'High Savings', 'Medium-savings': 'Medium Savings', 'Low-savings': 'Low Savings', 'Financial-stress': 'Financial Stress'
+            };
+            return map[type] || type;
+        }
+        
+        function getColor(d, colorBy) {
+            if (colorBy === 'consumption_type') return consumptionTypeColors[d.consumption_type_en] || '#999';
+            if (colorBy === 'financial_status') return financialStatusColors[d.financial_status_en] || '#999';
+            if (colorBy === 'educationLevel') return educationColors[d.educationLevel] || '#999';
+            if (colorBy === 'age_group') return ageGroupColors[d.age_group] || '#999';
+            return householdTypeColorScale(d.household_type);
+        }
+        
+        function calculateConsumptionType(d, threshold) {
+            if (!d.expense || d.expense < threshold) return 'Low-spending';
+            const s = d.shelter_expense_ratio || 0, f = d.food_expense_ratio || 0;
+            const r = d.recreation_expense_ratio || 0, e = d.education_expense_ratio || 0;
+            if (s > 1 || f > 1 || r > 1 || e > 1 || s < 0 || f < 0 || r < 0 || e < 0) return 'Low-spending';
+            if (e >= 0.10) return 'Education-heavy';
+            const maxRatio = Math.max(s, f, r);
+            if (s >= 0.45 && s === maxRatio) return 'Shelter-heavy';
+            if (f >= 0.30 && f === maxRatio) return 'Food-dominant';
+            if (r >= 0.20 && r === maxRatio) return 'Recreation-heavy';
+            return 'Balanced';
+        }
+        
+        function calculateFinancialStatus(sr, eir) {
+            if (sr < 0 || eir >= 1) return 'Financial-stress';
+            if (sr >= 0.5) return 'High-savings';
+            if (sr >= 0.2) return 'Medium-savings';
+            return 'Low-savings';
+        }
+        
+        function safeRatio(num, den) {
+            if (!den || den <= 0 || !isFinite(den) || !isFinite(num)) return null;
+            const r = num / den;
+            return (r < 0 || r > 2) ? null : r;
+        }
+        
+        function createPieChart(container, data) {
+            const width = 120, height = 120, radius = 50;
+            const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+            const pie = d3.pie().value(d => d.value).sort(null);
+            const arc = d3.arc().innerRadius(0).outerRadius(radius);
+            const g = svg.append('g').attr('transform', `translate(${width/2},${height/2})`);
+            g.selectAll('path').data(pie(data)).enter().append('path')
+                .attr('d', arc).attr('fill', d => pieColors[d.data.type])
+                .attr('stroke', 'white').attr('stroke-width', 1);
+            return svg;
+        }
+        
+        function getExpenseRatioData(d) {
+            const food = d.food_expense_ratio || 0, shelter = d.shelter_expense_ratio || 0;
+            const recreation = d.recreation_expense_ratio || 0, education = d.education_expense_ratio || 0;
+            const other = Math.max(0, 1 - food - shelter - recreation - education);
+            return [
+                { type: 'food', value: Math.max(0, food), label: 'Food', ratio: food },
+                { type: 'shelter', value: Math.max(0, shelter), label: 'Shelter', ratio: shelter },
+                { type: 'recreation', value: Math.max(0, recreation), label: 'Recreation', ratio: recreation },
+                { type: 'education', value: Math.max(0, education), label: 'Education', ratio: education },
+                { type: 'other', value: Math.max(0, other), label: 'Other', ratio: other }
+            ].filter(item => item.value > 0.001);
+        }
+        
+        function getGroupExpenseRatioData(stats, groupData) {
+            const food = d3.median(groupData, d => d.food_expense_ratio) || 0;
+            const shelter = d3.median(groupData, d => d.shelter_expense_ratio) || 0;
+            const recreation = d3.median(groupData, d => d.recreation_expense_ratio) || 0;
+            const education = d3.median(groupData, d => d.education_expense_ratio) || 0;
+            const other = Math.max(0, 1 - food - shelter - recreation - education);
+            return [
+                { type: 'food', value: Math.max(0, food), label: 'Food', ratio: food },
+                { type: 'shelter', value: Math.max(0, shelter), label: 'Shelter', ratio: shelter },
+                { type: 'recreation', value: Math.max(0, recreation), label: 'Recreation', ratio: recreation },
+                { type: 'education', value: Math.max(0, education), label: 'Education', ratio: education },
+                { type: 'other', value: Math.max(0, other), label: 'Other', ratio: other }
+            ].filter(item => item.value > 0.001);
+        }
+        
+        d3.csv('participant_monthly_stats.csv').then(data => {
+            rawData = data;
+            processData();
+            initUI();
+            render();
+        }).catch(err => console.error('Data loading failed:', err));
+        
+        function processData() {
+            const mode = document.getElementById('dataMode').value;
+            if (mode === 'all') {
+                const grouped = d3.group(rawData, d => d.participantId);
+                processedData = Array.from(grouped, ([id, recs]) => {
+                    const f = recs[0];
+                    const income = d3.mean(recs, d => +d.total_income);
+                    const expense = d3.mean(recs, d => +d.total_expense);
+                    const net = d3.mean(recs, d => +d.total_net);
+                    const food = d3.mean(recs, d => +d.total_food_expense);
+                    const rec = d3.mean(recs, d => +d.total_recreation_expense);
+                    const shelter = d3.mean(recs, d => +d.total_shelter_expense);
+                    const edu = d3.mean(recs, d => +d.total_education_expense);
+                    const bal = d3.mean(recs, d => +d.avg_availableBalance);
+                    return {
+                        participantId: id, month: 'All months', age: +f.age, age_group: f.age_group,
+                        educationLevel: f.educationLevel, householdSize: +f.householdSize,
+                        household_type: f.household_type, haveKids: f.haveKids === 'True',
+                        income, expense, net, avg_availableBalance: bal,
+                        expense_income_ratio: safeRatio(expense, income), savings_rate: safeRatio(net, income),
+                        food_expense_ratio: safeRatio(food, expense), shelter_expense_ratio: safeRatio(shelter, expense),
+                        recreation_expense_ratio: safeRatio(rec, expense), education_expense_ratio: safeRatio(edu, expense)
+                    };
+                });
+            } else {
+                processedData = rawData.filter(d => d.month === mode).map(d => {
+                    const income = +d.total_income, expense = +d.total_expense, net = +d.total_net;
+                    return {
+                        participantId: d.participantId, month: d.month, age: +d.age, age_group: d.age_group,
+                        educationLevel: d.educationLevel, householdSize: +d.householdSize,
+                        household_type: d.household_type, haveKids: d.haveKids === 'True',
+                        income, expense, net, avg_availableBalance: +d.avg_availableBalance,
+                        expense_income_ratio: safeRatio(expense, income), savings_rate: safeRatio(net, income),
+                        food_expense_ratio: safeRatio(+d.total_food_expense, expense),
+                        shelter_expense_ratio: safeRatio(+d.total_shelter_expense, expense),
+                        recreation_expense_ratio: safeRatio(+d.total_recreation_expense, expense),
+                        education_expense_ratio: safeRatio(+d.total_education_expense, expense)
+                    };
+                });
+            }
+            processedData = processedData.filter(d => isFinite(d.income) && isFinite(d.expense) && d.expense > 0 && d.expense_income_ratio !== null && d.savings_rate !== null);
+            const expenses = processedData.map(d => d.expense).sort(d3.ascending);
+            expense10thPercentile = d3.quantile(expenses, 0.10);
+            processedData.forEach(d => {
+                d.financial_status_en = calculateFinancialStatus(d.savings_rate, d.expense_income_ratio);
+                d.financial_status = translateType(d.financial_status_en);
+                d.consumption_type_en = calculateConsumptionType(d, expense10thPercentile);
+                d.consumption_type = translateType(d.consumption_type_en);
+            });
+            applyFilter();
+        }
+        
+        function applyFilter() {
+            const p = processedData;
+            if (currentFilter === 'all') { filteredData = [...p]; }
+            else if (currentFilter === 'high_shelter') {
+                const t = d3.quantile(p.filter(d => d.shelter_expense_ratio).map(d => d.shelter_expense_ratio).sort(d3.ascending), 0.75);
+                filteredData = p.filter(d => d.shelter_expense_ratio && d.shelter_expense_ratio >= t);
+            } else if (currentFilter === 'high_food') {
+                const t = d3.quantile(p.filter(d => d.food_expense_ratio).map(d => d.food_expense_ratio).sort(d3.ascending), 0.75);
+                filteredData = p.filter(d => d.food_expense_ratio && d.food_expense_ratio >= t);
+            } else if (currentFilter === 'high_recreation') {
+                const t = d3.quantile(p.filter(d => d.recreation_expense_ratio).map(d => d.recreation_expense_ratio).sort(d3.ascending), 0.75);
+                filteredData = p.filter(d => d.recreation_expense_ratio && d.recreation_expense_ratio >= t);
+            } else if (currentFilter === 'high_education') {
+                const t = d3.quantile(p.filter(d => d.education_expense_ratio).map(d => d.education_expense_ratio).sort(d3.ascending), 0.75);
+                filteredData = p.filter(d => d.education_expense_ratio && d.education_expense_ratio >= t);
+            } else if (currentFilter === 'high_expense_ratio') {
+                const t = d3.quantile(p.map(d => d.expense_income_ratio).sort(d3.ascending), 0.75);
+                filteredData = p.filter(d => d.expense_income_ratio >= t);
+            } else if (currentFilter === 'low_savings') {
+                filteredData = p.filter(d => d.savings_rate < 0.2);
+            } else if (currentFilter === 'have_kids') {
+                filteredData = p.filter(d => d.haveKids);
+            } else if (currentFilter === 'no_kids') {
+                filteredData = p.filter(d => !d.haveKids);
+            }
+            updateStats();
+        }
+        
+        function initUI() {
+            const cb = document.getElementById('axisCheckboxes');
+            cb.innerHTML = '';
+            allAxes.sort((a, b) => a.order - b.order).forEach(axis => {
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                div.innerHTML = `<input type="checkbox" id="axis_${axis.id}" value="${axis.id}" ${defaultAxes.includes(axis.id) ? 'checked' : ''}><label for="axis_${axis.id}">${axis.name}</label>`;
+                cb.appendChild(div);
+                div.querySelector('input').addEventListener('change', () => { updateActiveAxes(); render(); });
+            });
+            updateActiveAxes();
+            document.getElementById('dataMode').addEventListener('change', () => { brushes = {}; processData(); render(); });
+            document.getElementById('consumptionTypeMode').addEventListener('click', () => { currentMode = 'consumption_type'; updateModeButtons(); document.getElementById('sliderControl').style.display = 'none'; highlightedGroup = null; render(); });
+            document.getElementById('householdTypeMode').addEventListener('click', () => { currentMode = 'household_type'; updateModeButtons(); document.getElementById('sliderControl').style.display = 'none'; highlightedGroup = null; render(); });
+            document.getElementById('individualMode').addEventListener('click', () => { currentMode = 'individual'; updateModeButtons(); document.getElementById('sliderControl').style.display = 'block'; highlightedGroup = null; render(); });
+            document.getElementById('sampleSlider').addEventListener('input', e => { sampleSize = +e.target.value; document.getElementById('sliderValue').textContent = sampleSize; render(); });
+            document.getElementById('colorBy').addEventListener('change', e => { currentColorBy = e.target.value; updateLegend(); render(); });
+            document.getElementById('iqrToggle').addEventListener('click', function() { showIQR = !showIQR; this.classList.toggle('active', showIQR); render(); });
+            document.getElementById('resetBtn').addEventListener('click', resetAll);
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.addEventListener('click', () => {
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                applyFilter();
+                highlightedGroup = null;
+                render();
+            }));
+            updateLegend();
+        }
+        
+        function updateModeButtons() {
+            document.getElementById('consumptionTypeMode').classList.toggle('active', currentMode === 'consumption_type');
+            document.getElementById('householdTypeMode').classList.toggle('active', currentMode === 'household_type');
+            document.getElementById('individualMode').classList.toggle('active', currentMode === 'individual');
+        }
+        
+        function updateActiveAxes() {
+            activeAxes = [];
+            document.querySelectorAll('#axisCheckboxes input:checked').forEach(cb => {
+                const info = allAxes.find(a => a.id === cb.value);
+                if (info) activeAxes.push(info);
+            });
+            activeAxes.sort((a, b) => a.order - b.order);
+        }
+        
+        function updateLegend() {
+            const lc = document.getElementById('legend');
+            lc.innerHTML = '';
+            const colorField = currentColorBy === 'consumption_type' ? 'consumption_type_en' : 
+                              currentColorBy === 'financial_status' ? 'financial_status_en' : currentColorBy;
+            const uniqueVals = [...new Set(filteredData.map(d => d[colorField]))].filter(v => v !== null && v !== undefined);
+            uniqueVals.forEach(val => {
+                const count = filteredData.filter(d => d[colorField] === val).length;
+                const color = getColorMock(val, currentColorBy);
+                const item = document.createElement('div');
+                item.className = 'legend-item' + (highlightedGroup !== null && highlightedGroup !== val ? ' dimmed' : '');
+                const displayVal = currentColorBy === 'consumption_type' || currentColorBy === 'financial_status' ? translateType(val) : val;
+                item.innerHTML = `<div class="legend-circle" style="background:${color}"></div><span>${displayVal} (${count})</span>`;
+                item.addEventListener('click', () => { if (currentMode !== 'individual') { highlightedGroup = highlightedGroup === val ? null : val; render(); }});
+                lc.appendChild(item);
+            });
+        }
+        
+        function getColorMock(val, colorBy) {
+            if (colorBy === 'consumption_type') return consumptionTypeColors[val] || '#999';
+            if (colorBy === 'financial_status') return financialStatusColors[val] || '#999';
+            if (colorBy === 'educationLevel') return educationColors[val] || householdTypeColorScale(val);
+            if (colorBy === 'age_group') return ageGroupColors[val] || householdTypeColorScale(val);
+            return householdTypeColorScale(val);
+        }
+        
+        function getGroupColor(key, groupKey, colorBy) {
+            if (groupKey === colorBy) return getColorMock(key, colorBy);
+            const groupData = filteredData.filter(d => d[groupKey] === key);
+            if (groupData.length > 0) return getColor(groupData[0], colorBy);
+            return '#999';
+        }
+        
+        function updateStats() {
+            const total = filteredData.length;
+            const cc = d3.rollup(filteredData, v => v.length, d => d.consumption_type_en);
+            document.getElementById('statsGrid').innerHTML = Object.entries({
+                'Total': total, 'Shelter-heavy': cc.get('Shelter-heavy')||0, 'Food-dominant': cc.get('Food-dominant')||0,
+                'Recreation-heavy': cc.get('Recreation-heavy')||0, 'Education-heavy': cc.get('Education-heavy')||0,
+                'Balanced': cc.get('Balanced')||0, 'Avg Savings': ((d3.mean(filteredData, d => d.savings_rate)||0)*100).toFixed(1)+'%'
+            }).map(([l, v]) => `<div class="stat-item"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+            document.getElementById('statsInfo').textContent = `Showing ${total} residents. Mode: ${currentMode === 'consumption_type' ? 'Consumption Type Median' : currentMode === 'household_type' ? 'Household Type Median' : 'Individual'}. Filter: ${currentFilter}.`;
+        }
+        
+        function resetAll() {
+            brushes = {}; currentFilter = 'all'; currentColorBy = 'consumption_type'; currentMode = 'consumption_type';
+            showIQR = true; highlightedGroup = null;
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.preset-btn[data-filter="all"]').classList.add('active');
+            document.getElementById('colorBy').value = 'consumption_type';
+            document.getElementById('iqrToggle').classList.add('active');
+            updateModeButtons();
+            document.getElementById('sliderControl').style.display = 'none';
+            document.querySelectorAll('#axisCheckboxes input').forEach(cb => { cb.checked = defaultAxes.includes(cb.value); });
+            updateActiveAxes();
+            applyFilter();
+            updateLegend();
+            render();
+        }
+        
+        function formatValue(v, type) {
+            if (v === null || v === undefined || !isFinite(v)) return 'N/A';
+            if (type === 'ratio') return (v * 100).toFixed(1) + '%';
+            if (type === 'currency') return Math.round(v).toLocaleString();
+            if (type === 'numeric') return Math.round(v);
+            return v.toFixed(2);
+        }
+        
+        function resolveCollisions(labels, minDist = 14, maxY = Infinity) {
+            const pos = labels.map(l => ({ y: l.y, orig: l.y, key: l.key, count: l.count, isSmall: l.isSmall, color: l.color }));
+            pos.sort((a, b) => a.y - b.y);
+            for (let i = 1; i < pos.length; i++) {
+                if (pos[i].y - pos[i-1].y < minDist) pos[i].y = pos[i-1].y + minDist;
+            }
+            // Clamp bottom label to chart boundary, then push others upward
+            if (pos.length > 0 && pos[pos.length - 1].y > maxY) {
+                pos[pos.length - 1].y = maxY;
+                for (let i = pos.length - 2; i >= 0; i--) {
+                    if (pos[i+1].y - pos[i].y < minDist) pos[i].y = pos[i+1].y - minDist;
+                }
+            }
+            // Clamp top label
+            if (pos.length > 0 && pos[0].y < minDist) {
+                pos[0].y = minDist;
+                for (let i = 1; i < pos.length; i++) {
+                    if (pos[i].y - pos[i-1].y < minDist) pos[i].y = pos[i-1].y + minDist;
+                }
+            }
+            return pos;
+        }
+        
+        function render() {
+            const container = document.getElementById('chart');
+            container.innerHTML = '';
+            if (activeAxes.length < 2) { container.innerHTML = '<p style="text-align:center;color:#888;padding:50px;">Select at least 2 axes</p>'; return; }
+            const width = container.clientWidth, height = 550, margin = { top: 40, right: 170, bottom: 30, left: 50 };
+            const innerW = width - margin.left - margin.right, innerH = height - margin.top - margin.bottom;
+            const svg = d3.select('#chart').append('svg').attr('width', width).attr('height', height);
+            const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+            const xScale = d3.scalePoint().domain(activeAxes.map(a => a.id)).range([0, innerW]);
+            yScales = {};
+            activeAxes.forEach(axis => {
+                const vals = filteredData.map(d => d[axis.id]).filter(v => v !== null && isFinite(v));
+                const dom = vals.length > 0 ? d3.extent(vals) : [0, 1];
+                yScales[axis.id] = d3.scaleLinear().domain(dom).range([innerH, 0]).nice();
+            });
+            
+            if (currentMode !== 'individual') {
+                // 使用英文字段作为分组键，以便正确获取颜色
+                const groupKeyEn = currentMode === 'consumption_type' ? 'consumption_type_en' : 
+                                   currentMode === 'financial_status' ? 'financial_status_en' : currentMode;
+                const groups = d3.group(filteredData, d => d[groupKeyEn]);
+                const stats = [];
+                groups.forEach((recs, key) => {
+                    const st = { key, count: recs.length, isSmall: recs.length / filteredData.length < 0.05, records: recs };
+                    activeAxes.forEach(axis => {
+                        const vals = recs.map(d => d[axis.id]).filter(v => v !== null && isFinite(v)).sort(d3.ascending);
+                        st[axis.id] = { median: d3.median(vals), q1: vals.length > 1 ? d3.quantile(vals, 0.25) : vals[0], q3: vals.length > 1 ? d3.quantile(vals, 0.75) : vals[0] };
+                    });
+                    stats.push(st);
+                });
+                
+                if (showIQR) {
+                    stats.forEach(st => {
+                        const hl = highlightedGroup === st.key, dm = highlightedGroup !== null && !hl;
+                        for (let i = 0; i < activeAxes.length - 1; i++) {
+                            const a1 = activeAxes[i], a2 = activeAxes[i+1];
+                            const x1 = xScale(a1.id), x2 = xScale(a2.id);
+                            const y1q1 = yScales[a1.id](st[a1.id].q1), y1q3 = yScales[a1.id](st[a1.id].q3);
+                            const y2q1 = yScales[a2.id](st[a2.id].q1), y2q3 = yScales[a2.id](st[a2.id].q3);
+                            if ([y1q1, y1q3, y2q1, y2q3].every(y => isFinite(y))) {
+                                g.append('polygon').attr('class', 'iqr-band' + (dm ? ' dimmed' : hl ? ' highlighted' : ''))
+                                    .attr('points', `${x1},${y1q1} ${x2},${y2q1} ${x2},${y2q3} ${x1},${y1q3}`)
+                                    .attr('fill', getGroupColor(st.key, groupKeyEn, currentColorBy));
+                            }
+                        }
+                    });
+                }
+                
+                g.selectAll('.median-line').data(stats).enter().append('path')
+                    .attr('class', d => 'median-line' + (highlightedGroup !== null && highlightedGroup !== d.key ? ' dimmed' : ''))
+                    .attr('d', st => d3.line()(activeAxes.map(a => [xScale(a.id), yScales[a.id](st[a.id].median)]).filter(p => isFinite(p[1]))))
+                    .attr('stroke', st => getGroupColor(st.key, groupKeyEn, currentColorBy)).attr('stroke-width', 4)
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function(e, st) { d3.select(this).attr('stroke-width', 6); showTooltip(e, st, 'group', groupKeyEn); })
+                    .on('mouseout', function() { d3.select(this).attr('stroke-width', 4); hideTooltip(); })
+                    .on('click', function(e, st) { highlightedGroup = highlightedGroup === st.key ? null : st.key; render(); });
+                
+                const lastAxis = activeAxes[activeAxes.length - 1];
+                const labels = stats.map(st => ({ key: st.key, count: st.count, isSmall: st.isSmall, y: yScales[lastAxis.id](st[lastAxis.id].median), color: getGroupColor(st.key, groupKeyEn, currentColorBy) }));
+                const resolved = resolveCollisions(labels, 14, innerH - 4);
+                resolved.forEach(p => {
+                    const dm = highlightedGroup !== null && highlightedGroup !== p.key;
+                    if (Math.abs(p.orig - p.y) > 2) {
+                        g.append('line').attr('class', 'leader-line').attr('x1', xScale(lastAxis.id) + 3).attr('y1', p.orig)
+                            .attr('x2', xScale(lastAxis.id) + 8).attr('y2', p.y).attr('stroke-opacity', dm ? 0.2 : 0.5);
+                    }
+                    g.append('text').attr('class', 'group-label').attr('x', xScale(lastAxis.id) + 10).attr('y', p.y)
+                        .attr('dy', '0.35em').attr('fill', p.color).attr('opacity', dm ? 0.3 : 1)
+                        .text(`${p.key} (${p.count})${p.isSmall ? ' ⚠' : ''}`);
+                });
+            } else {
+                const sampled = d3.shuffle([...filteredData]).slice(0, sampleSize);
+                g.selectAll('.individual-line').data(sampled).enter().append('path')
+                    .attr('class', 'individual-line').attr('stroke', d => getColor(d, currentColorBy))
+                    .attr('d', d => d3.line()(activeAxes.map(a => [xScale(a.id), yScales[a.id](d[a.id])]).filter(p => isFinite(p[1]))))
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function(e, d) { d3.select(this).classed('highlighted', true).attr('stroke-width', 2.5); showTooltip(e, d, 'individual'); })
+                    .on('mouseout', function() { d3.select(this).classed('highlighted', false).attr('stroke-width', 1); hideTooltip(); });
+                applyBrushes();
+            }
+            
+            activeAxes.forEach(axis => {
+                const x = xScale(axis.id);
+                const axisG = g.append('g').attr('class', 'axis').attr('transform', `translate(${x},0)`);
+                axisG.append('text').attr('class', 'axis-title').attr('y', -15).attr('text-anchor', 'middle').text(axis.name);
+                axisG.append('g').attr('class', 'axis-line').call(d3.axisLeft(yScales[axis.id]).ticks(5).tickFormat(d => {
+                    if (axis.type === 'ratio') return (d * 100).toFixed(0) + '%';
+                    if (axis.type === 'currency') return d3.format('.2s')(d);
+                    return d;
+                }));
+                const brush = d3.brushY().extent([[-8, 0], [8, innerH]])
+                    .on('brush', e => { brushes[axis.id] = e.selection; applyBrushes(); })
+                    .on('end', e => { if (!e.selection) { delete brushes[axis.id]; applyBrushes(); }});
+                axisG.append('g').attr('class', 'brush').call(brush);
+            });
+            updateLegend();
+        }
+        
+        function applyBrushes() {
+            if (currentMode !== 'individual') return;
+            const activeB = Object.entries(brushes).filter(([_, s]) => s);
+            d3.selectAll('.individual-line').classed('dimmed', activeB.length > 0).attr('stroke-opacity', activeB.length > 0 ? 0.05 : 0.18).attr('stroke', activeB.length > 0 ? '#ccc' : d => getColor(d, currentColorBy));
+            if (activeB.length > 0) {
+                d3.selectAll('.individual-line').filter(d => activeB.every(([ax, sel]) => {
+                    const v = d[ax]; if (v === null || !isFinite(v)) return false;
+                    const y = yScales[ax](v); return y >= sel[0] && y <= sel[1];
+                })).classed('dimmed', false).attr('stroke-opacity', 0.8).attr('stroke', d => getColor(d, currentColorBy)).raise();
+            }
+        }
+        
+        function showTooltip(e, d, mode, gKey = null) {
+            const tt = document.getElementById('tooltip');
+            tt.innerHTML = '';
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'tooltip-title';
+            if (mode === 'group') {
+                const pct = (d.count / filteredData.length * 100).toFixed(1);
+                const displayKey = currentMode === 'consumption_type' ? translateType(d.key) : d.key;
+                titleDiv.textContent = `${displayKey} (${d.count} residents, ${pct}%)`;
+            } else {
+                titleDiv.textContent = `Participant #${d.participantId}`;
+            }
+            tt.appendChild(titleDiv);
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'tooltip-content';
+            tt.appendChild(contentDiv);
+            
+            const pieSection = document.createElement('div');
+            pieSection.className = 'tooltip-pie-section';
+            contentDiv.appendChild(pieSection);
+            
+            const pieContainer = document.createElement('div');
+            pieContainer.className = 'tooltip-pie';
+            pieSection.appendChild(pieContainer);
+            
+            const pieData = mode === 'group' ? getGroupExpenseRatioData(d, d.records) : getExpenseRatioData(d);
+            createPieChart(pieContainer, pieData);
+            
+            const pieTitle = document.createElement('div');
+            pieTitle.className = 'tooltip-pie-title';
+            pieTitle.textContent = 'Expense Structure';
+            pieSection.appendChild(pieTitle);
+            
+            const detailsSection = document.createElement('div');
+            detailsSection.className = 'tooltip-details-section';
+            contentDiv.appendChild(detailsSection);
+            
+            const ratioTitle = document.createElement('div');
+            ratioTitle.className = 'tooltip-section-title';
+            ratioTitle.textContent = 'Expense Ratios';
+            detailsSection.appendChild(ratioTitle);
+            
+            pieData.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'tooltip-row';
+                row.innerHTML = `<span style="color:${pieColors[item.type]};font-weight:bold">●</span> ${item.label}: <span>${(item.ratio * 100).toFixed(1)}%</span>`;
+                detailsSection.appendChild(row);
+            });
+            
+            const divider = document.createElement('div');
+            divider.className = 'tooltip-divider';
+            detailsSection.appendChild(divider);
+            
+            if (mode === 'group') {
+                activeAxes.forEach(ax => {
+                    const row = document.createElement('div');
+                    row.className = 'tooltip-row';
+                    row.innerHTML = `${ax.name}: <span>${formatValue(d[ax.id].median, ax.type)}</span>`;
+                    detailsSection.appendChild(row);
+                });
+            } else {
+                const infoRows = [
+                    ['Month', d.month],
+                    ['Type', translateType(d.consumption_type_en)],
+                    ['Household', d.household_type || 'N/A'],
+                    ['Kids', d.haveKids ? 'Yes' : 'No'],
+                    ['Education', d.educationLevel],
+                    ['Income', formatValue(d.income, 'currency')],
+                    ['Expense', formatValue(d.expense, 'currency')],
+                    ['Expense/Income', formatValue(d.expense_income_ratio, 'ratio')],
+                    ['Savings Rate', formatValue(d.savings_rate, 'ratio')],
+                    ['Status', translateType(d.financial_status_en)]
+                ];
+                infoRows.forEach(([label, value]) => {
+                    const row = document.createElement('div');
+                    row.className = 'tooltip-row';
+                    row.innerHTML = `${label}: <span>${value}</span>`;
+                    detailsSection.appendChild(row);
+                });
+            }
+            
+            if (mode === 'group' && d.isSmall) {
+                const warnDiv = document.createElement('div');
+                warnDiv.className = 'tooltip-warning';
+                warnDiv.textContent = '⚠ Small group warning';
+                detailsSection.appendChild(warnDiv);
+            }
+            if (mode !== 'group' && d.consumption_type_en === 'Low-spending') {
+                const warnDiv = document.createElement('div');
+                warnDiv.className = 'tooltip-warning';
+                warnDiv.textContent = '⚠ Data quality warning';
+                detailsSection.appendChild(warnDiv);
+            }
+            
+            const tx = Math.min(e.clientX + 15, window.innerWidth - 470);
+            const ty = Math.min(e.clientY - 10, window.innerHeight - tt.offsetHeight - 20);
+            tt.style.left = tx + 'px';
+            tt.style.top = ty + 'px';
+            tt.classList.add('visible');
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('visible');
+        }
+        
+        window.addEventListener('resize', render);
+    </script>
+</body>
+</html>

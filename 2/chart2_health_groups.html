@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Box Plot - Income & Expense Analysis</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .filter-section {
+            margin-bottom: 25px;
+        }
+        
+        .filter-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .filter-section select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .filter-section select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .chart-area {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-area h1 {
+            margin: 0 0 20px 0;
+            font-size: 22px;
+            color: #333;
+        }
+        
+        .stats-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }
+        
+        .charts-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        .chart-card {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #eee;
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        .chart-title {
+            text-align: center;
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .box {
+            stroke: #2c3e50;
+            stroke-width: 1.5;
+        }
+        
+        .whisker {
+            stroke: #2c3e50;
+            stroke-width: 1.5;
+        }
+        
+        .median-line {
+            stroke: #e74c3c;
+            stroke-width: 2.5;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 100;
+        }
+        
+        .tooltip.active {
+            opacity: 1;
+        }
+        
+        .outlier {
+            fill: #e74c3c;
+            stroke: none;
+            opacity: 0.6;
+        }
+        
+        .axis-label {
+            font-size: 11px;
+            fill: #666;
+        }
+        
+        .axis-title {
+            font-size: 12px;
+            font-weight: bold;
+            fill: #333;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            justify-content: center;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Data Filter</h2>
+            
+            <div class="filter-section">
+                <h3>Group By</h3>
+                <select id="groupFilter">
+                    <option value="educationLevel">Education Level</option>
+                    <option value="age_group">Age Group</option>
+                    <option value="household_type">Household Type</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Metrics Display</h3>
+                <select id="metricFilter">
+                    <option value="all">All Metrics</option>
+                    <option value="avg_income">Monthly Avg Income</option>
+                    <option value="avg_expense">Monthly Avg Expense</option>
+                    <option value="avg_net">Monthly Avg Net Cash Flow</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="chart-area">
+            <h1>Income & Expense Box Plot Analysis</h1>
+            <div class="stats-info" id="statsInfo">Loading data...</div>
+            <div class="charts-container" id="chartsContainer"></div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        let allData = [];
+        
+        const metrics = [
+            { key: 'avg_income', label: 'Monthly Avg Income', color: '#4CAF50' },
+            { key: 'avg_expense', label: 'Monthly Avg Expense', color: '#F44336' },
+            { key: 'avg_net', label: 'Monthly Avg Net Cash Flow', color: '#2196F3' }
+        ];
+        
+        const groupConfigs = {
+            educationLevel: {
+                key: 'educationLevel',
+                values: ['Low', 'HighSchoolOrCollege', 'Bachelors', 'Graduate'],
+                labels: ['Low', 'HighSchoolOrCollege', 'Bachelors', 'Graduate'],
+                title: 'By Education Level'
+            },
+            age_group: {
+                key: 'age_group',
+                values: ['18-25', '26-35', '36-45', '46-55', '56-60'],
+                labels: ['18-25', '26-35', '36-45', '46-55', '56-60'],
+                title: 'By Age Group'
+            },
+            household_type: {
+                key: 'household_type',
+                values: ['Size1_NoKids', 'Size2_NoKids', 'Size3_Kids'],
+                labels: ['Size1_NoKids', 'Size2_NoKids', 'Size3_Kids'],
+                title: 'By Household Type'
+            }
+        };
+        
+        function calculateBoxPlotStats(values) {
+            if (values.length === 0) return null;
+            
+            const sorted = values.slice().sort((a, b) => a - b);
+            const n = sorted.length;
+            
+            const min = sorted[0];
+            const max = sorted[n - 1];
+            const median = d3.quantile(sorted, 0.5);
+            const q1 = d3.quantile(sorted, 0.25);
+            const q3 = d3.quantile(sorted, 0.75);
+            
+            const iqr = q3 - q1;
+            const lowerWhisker = Math.max(min, q1 - 1.5 * iqr);
+            const upperWhisker = Math.min(max, q3 + 1.5 * iqr);
+            
+            const outliers = sorted.filter(v => v < lowerWhisker || v > upperWhisker);
+            
+            return {
+                min, max, median, q1, q3, iqr,
+                lowerWhisker, upperWhisker, outliers, count: n
+            };
+        }
+        
+        function drawBoxPlot(svg, stats, x, width, yScale, color, metricLabel, metricKey) {
+            if (!stats) return;
+            
+            const g = svg.append('g')
+                .attr('class', 'boxplot')
+                .attr('transform', `translate(${x}, 0)`);
+            
+            const boxHeight = yScale(stats.q3) - yScale(stats.q1);
+            const boxY = yScale(stats.q3);
+            
+            // Create a transparent background area for wider hover detection
+            g.append('rect')
+                .attr('class', 'hover-area')
+                .attr('x', -5)
+                .attr('y', yScale(stats.upperWhisker) - 5)
+                .attr('width', width + 10)
+                .attr('height', yScale(stats.lowerWhisker) - yScale(stats.upperWhisker) + 10)
+                .attr('fill', 'transparent')
+                .style('cursor', 'pointer');
+            
+            const mainBox = g.append('rect')
+                .attr('class', 'box')
+                .attr('x', 0)
+                .attr('y', boxY)
+                .attr('width', width)
+                .attr('height', boxHeight)
+                .attr('fill', color)
+                .attr('fill-opacity', 0.7)
+                .style('cursor', 'pointer');
+            
+            // Hover effect - highlight the entire box
+            const tooltip = d3.select('#tooltip');
+            g.selectAll('.hover-area, .box')
+                .on('mouseover', function(event) {
+                    mainBox.attr('fill-opacity', 1)
+                           .attr('stroke', '#e74c3c')
+                           .attr('stroke-width', 3);
+                    g.selectAll('.whisker, .median-line').attr('stroke-width', 3);
+                    
+                    tooltip.html(`
+                        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px;">
+                            ${metricLabel} - ${metricKey}
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                            <span>Sample Count:</span><span style="font-weight: bold;">${stats.count}</span>
+                            <span>Min:</span><span>${stats.min.toFixed(2)}</span>
+                            <span>Q1 (25%):</span><span>${stats.q1.toFixed(2)}</span>
+                            <span>Median:</span><span style="color: #e74c3c; font-weight: bold;">${stats.median.toFixed(2)}</span>
+                            <span>Q3 (75%):</span><span>${stats.q3.toFixed(2)}</span>
+                            <span>Max:</span><span>${stats.max.toFixed(2)}</span>
+                            <span>IQR:</span><span>${stats.iqr.toFixed(2)}</span>
+                            <span>Outliers:</span><span>${stats.outliers.length}</span>
+                        </div>
+                    `)
+                    .style('left', (event.pageX + 15) + 'px')
+                    .style('top', (event.pageY - 10) + 'px')
+                    .attr('class', 'tooltip active');
+                })
+                .on('mouseout', function() {
+                    mainBox.attr('fill-opacity', 0.7)
+                           .attr('stroke', '#2c3e50')
+                           .attr('stroke-width', 1.5);
+                    g.selectAll('.whisker').attr('stroke-width', 1.5);
+                    g.selectAll('.median-line').attr('stroke-width', 2.5);
+                    tooltip.attr('class', 'tooltip');
+                });
+            
+            g.append('line')
+                .attr('class', 'median-line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', yScale(stats.median))
+                .attr('y2', yScale(stats.median));
+            
+            g.append('line')
+                .attr('class', 'whisker')
+                .attr('x1', width / 2)
+                .attr('x2', width / 2)
+                .attr('y1', yScale(stats.lowerWhisker))
+                .attr('y2', yScale(stats.q1));
+            
+            g.append('line')
+                .attr('class', 'whisker')
+                .attr('x1', width / 2)
+                .attr('x2', width / 2)
+                .attr('y1', yScale(stats.q3))
+                .attr('y2', yScale(stats.upperWhisker));
+            
+            g.append('line')
+                .attr('class', 'whisker')
+                .attr('x1', width * 0.2)
+                .attr('x2', width * 0.8)
+                .attr('y1', yScale(stats.lowerWhisker))
+                .attr('y2', yScale(stats.lowerWhisker));
+            
+            g.append('line')
+                .attr('class', 'whisker')
+                .attr('x1', width * 0.2)
+                .attr('x2', width * 0.8)
+                .attr('y1', yScale(stats.upperWhisker))
+                .attr('y2', yScale(stats.upperWhisker));
+            
+            stats.outliers.forEach(outlier => {
+                g.append('circle')
+                    .attr('class', 'outlier')
+                    .attr('cx', width / 2)
+                    .attr('cy', yScale(outlier))
+                    .attr('r', 3)
+                    .on('mouseover', function(event) {
+                        tooltip.html(`Outlier: ${outlier.toFixed(2)}`)
+                            .style('left', (event.pageX + 15) + 'px')
+                            .style('top', (event.pageY - 10) + 'px')
+                            .attr('class', 'tooltip active');
+                    })
+                    .on('mouseout', function() {
+                        tooltip.attr('class', 'tooltip');
+                    });
+            });
+        }
+        
+        function drawChart(containerId, metric, groupConfig, data) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            const margin = { top: 30, right: 30, bottom: 60, left: 70 };
+            const containerWidth = container.clientWidth;
+            const containerHeight = 320;
+            const width = containerWidth - margin.left - margin.right;
+            const height = containerHeight - margin.top - margin.bottom;
+            
+            const svg = d3.select(container)
+                .append('svg')
+                .attr('width', containerWidth)
+                .attr('height', containerHeight)
+                .append('g')
+                .attr('transform', `translate(${margin.left}, ${margin.top})`);
+            
+            // Collect all values for this metric
+            let allValues = [];
+            groupConfig.values.forEach(groupValue => {
+                const groupData = data.filter(d => d[groupConfig.key] === groupValue);
+                groupData.forEach(d => allValues.push(d[metric.key]));
+            });
+            
+            // Use d3 min/max and add padding
+            const dataMin = d3.min(allValues);
+            const dataMax = d3.max(allValues);
+            const padding = (dataMax - dataMin) * 0.1;
+            const yMin = dataMin - padding;
+            const yMax = dataMax + padding;
+            
+            const yScale = d3.scaleLinear()
+                .domain([yMin, yMax])
+                .range([height, 0]);
+            
+            // Y-axis
+            svg.append('g')
+                .attr('class', 'y-axis')
+                .call(d3.axisLeft(yScale).ticks(8).tickFormat(d3.format(',.0f')))
+                .selectAll('text')
+                .attr('class', 'axis-label');
+            
+            // Y-axis title
+            svg.append('text')
+                .attr('class', 'axis-title')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', -50)
+                .attr('x', -height / 2)
+                .attr('text-anchor', 'middle')
+                .text('Amount ($)');
+            
+            const numGroups = groupConfig.values.length;
+            const groupWidth = width / numGroups;
+            const boxWidth = Math.min(50, groupWidth - 15);
+            
+            // X-axis (bottom axis line)
+            svg.append('line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', height)
+                .attr('y2', height)
+                .attr('stroke', '#333')
+                .attr('stroke-width', 1);
+            
+            // Draw box plot for each group
+            groupConfig.values.forEach((groupValue, groupIndex) => {
+                const groupX = groupIndex * groupWidth + (groupWidth - boxWidth) / 2;
+                
+                // X-axis group labels
+                svg.append('text')
+                    .attr('class', 'axis-label')
+                    .attr('x', groupX + boxWidth / 2)
+                    .attr('y', height + 35)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '11px')
+                    .text(groupConfig.labels[groupIndex]);
+                
+                const groupData = data.filter(d => d[groupConfig.key] === groupValue);
+                const values = groupData.map(d => d[metric.key]);
+                const stats = calculateBoxPlotStats(values);
+                
+                drawBoxPlot(svg, stats, groupX, boxWidth, yScale, metric.color, groupConfig.labels[groupIndex], metric.label);
+            });
+            
+            // X-axis title
+            svg.append('text')
+                .attr('class', 'axis-title')
+                .attr('x', width / 2)
+                .attr('y', height + 55)
+                .attr('text-anchor', 'middle')
+                .text(groupConfig.title);
+        }
+        
+        function drawLegend(metricsToShow) {
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+            
+            metricsToShow.forEach(metric => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `
+                    <div class="legend-color" style="background-color: ${metric.color}"></div>
+                    <span>${metric.label}</span>
+                `;
+                legendContainer.appendChild(item);
+            });
+        }
+        
+        function updateCharts() {
+            const groupKey = document.getElementById('groupFilter').value;
+            const metricKey = document.getElementById('metricFilter').value;
+            const groupConfig = groupConfigs[groupKey];
+            
+            let metricsToShow = metrics;
+            if (metricKey !== 'all') {
+                metricsToShow = metrics.filter(m => m.key === metricKey);
+            }
+            
+            const container = document.getElementById('chartsContainer');
+            container.innerHTML = '';
+            
+            // Update stats info
+            document.getElementById('statsInfo').textContent = 
+                `Showing ${metricsToShow.length} metric(s) grouped by ${groupConfig.title}`;
+            
+            metricsToShow.forEach((metric, index) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'chart-card';
+                cardDiv.innerHTML = `<div class="chart-title" style="color: ${metric.color}">${metric.label}</div>`;
+                
+                const chartDiv = document.createElement('div');
+                chartDiv.id = `chart_${index}`;
+                chartDiv.style.width = '100%';
+                cardDiv.appendChild(chartDiv);
+                container.appendChild(cardDiv);
+                
+                drawChart(chartDiv.id, metric, groupConfig, allData);
+            });
+            
+            drawLegend(metricsToShow);
+        }
+        
+        d3.csv('chart2_health_groups.csv').then(data => {
+            data.forEach(d => {
+                d.avg_income = +d.avg_income;
+                d.avg_expense = +d.avg_expense;
+                d.avg_net = +d.avg_net;
+                d.age = +d.age;
+                d.householdSize = +d.householdSize;
+            });
+            
+            allData = data;
+            
+            document.getElementById('groupFilter').addEventListener('change', updateCharts);
+            document.getElementById('metricFilter').addEventListener('change', updateCharts);
+            updateCharts();
+        }).catch(error => {
+            console.error('Error loading data:', error);
+            document.getElementById('chartsContainer').innerHTML = '<p style="color:red;text-align:center;padding:50px;">Data loading failed. Please ensure chart2_health_groups.csv file exists</p>';
+            document.getElementById('statsInfo').textContent = 'Data loading failed';
+        });
+        
+        // Redraw on window resize
+        window.addEventListener('resize', updateCharts);
+    </script>
+</body>
+</html>

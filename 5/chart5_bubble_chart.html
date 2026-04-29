@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Turnover Rate vs Average Salary</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .filter-section {
+            margin-bottom: 25px;
+        }
+        
+        .filter-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .filter-section select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .filter-section select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .filter-section label {
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+        }
+        
+        .filter-section input[type="checkbox"] {
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        
+        .filter-section input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .range-values {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .checkbox-item:hover label {
+            color: #4CAF50;
+        }
+        
+        .chart-area {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-area h1 {
+            margin: 0 0 20px 0;
+            font-size: 22px;
+            color: #333;
+        }
+        
+        .stats-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 550px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 100;
+        }
+        
+        .tooltip.active {
+            opacity: 1;
+        }
+        
+        .tooltip-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .tooltip-row {
+            margin: 4px 0;
+            color: #555;
+        }
+        
+        .tooltip-row span {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-circle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+        
+        .bin-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .bin-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+        
+        .bin-line {
+            width: 25px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        
+        .axis-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: 500;
+        }
+        
+        .grid-line {
+            stroke: #eee;
+            stroke-dasharray: 3,3;
+        }
+        
+        .avg-line {
+            stroke-dasharray: 8,4;
+        }
+        
+        .avg-label {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .bubble {
+            stroke-width: 1;
+            cursor: pointer;
+            transition: stroke-width 0.2s;
+        }
+        
+        .bubble:hover {
+            stroke-width: 2;
+        }
+        
+        .bin-area {
+            fill-opacity: 0;
+            cursor: pointer;
+        }
+        
+        .bin-area:hover {
+            fill-opacity: 0.15;
+        }
+        
+        .multi-tooltip {
+            position: absolute;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .multi-tooltip.active {
+            opacity: 1;
+        }
+        
+        .multi-tooltip-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        
+        .multi-tooltip-item {
+            margin: 6px 0;
+            padding: 4px 0;
+            border-bottom: 1px dashed #eee;
+        }
+        
+        .multi-tooltip-item:last-child {
+            border-bottom: none;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Data Filter</h2>
+            
+            <div class="filter-section">
+                <h3>Salary Range</h3>
+                <select id="salaryFilter">
+                    <option value="all">All ($10-$40)</option>
+                    <option value="10-15">$10 - $15</option>
+                    <option value="15-20">$15 - $20</option>
+                    <option value="20-25">$20 - $25</option>
+                    <option value="25-30">$25 - $30</option>
+                    <option value="30-35">$30 - $35</option>
+                    <option value="35-40">$35 - $40</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Turnover Rate Range</h3>
+                <select id="turnoverFilter">
+                    <option value="all">All (0% - 100%)</option>
+                    <option value="zero">Zero Turnover (0%)</option>
+                    <option value="low">Low (0% - 25%)</option>
+                    <option value="medium">Medium (25% - 50%)</option>
+                    <option value="high">High (50% - 100%)</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Employee Count</h3>
+                <select id="employeeFilter">
+                    <option value="all">All (1 - 10)</option>
+                    <option value="small">Small (1 - 3 employees)</option>
+                    <option value="medium">Medium (4 - 6 employees)</option>
+                    <option value="large">Large (7 - 10 employees)</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Company Search</h3>
+                <input type="text" id="companySearch" placeholder="Enter Company ID..." style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <div style="margin-top: 8px; font-size: 12px; color: #999;">Enter ID to highlight a company</div>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Display Options</h3>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="showZeroTurnover" checked>
+                    <label for="showZeroTurnover">Show Zero Turnover Companies</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="showAvgLines" checked>
+                    <label for="showAvgLines">Show Average Lines</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="showBinLines" checked>
+                    <label for="showBinLines">Show Salary Bin Average Lines</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="showGrid" checked>
+                    <label for="showGrid">Show Grid Lines</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-area">
+            <h1>Company Turnover Rate vs Average Salary</h1>
+            <div class="stats-info" id="statsInfo">Loading data...</div>
+            <div id="chart"></div>
+            <div class="legend" id="legend"></div>
+            <div class="bin-legend" id="binLegend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+    <div class="multi-tooltip" id="multiTooltip"></div>
+
+    <script>
+        // Salary bin configuration
+        const bins = [
+            { range: [10, 15], label: "$10-15", color: "#FF6B6B" },
+            { range: [15, 20], label: "$15-20", color: "#FF8E53" },
+            { range: [20, 25], label: "$20-25", color: "#FFA94D" },
+            { range: [25, 30], label: "$25-30", color: "#FFD43B" },
+            { range: [30, 35], label: "$30-35", color: "#69DB7C" },
+            { range: [35, 41], label: "$35-40", color: "#4DABF7" }
+        ];
+        
+        let allData = [];
+        let filteredData = [];
+        let highlightedCompanyId = null;
+        
+        // Load data
+        d3.csv("turnover_rate_results.csv").then(data => {
+            // Data preprocessing
+            data.forEach(d => {
+                d.employerId = +d.employerId;
+                d.avgHourlyRate = +d.avgHourlyRate;
+                d.initialEmployees = +d.initialEmployees;
+                d.leftEmployees = +d.leftEmployees;
+                d.turnoverRate = +d.turnoverRate;
+            });
+            
+            allData = data;
+            updateChart();
+        }).catch(error => {
+            console.error('Data loading failed:', error);
+            document.getElementById('chart').innerHTML = '<div class="no-data">Data loading failed, please ensure turnover_rate_results.csv exists</div>';
+        });
+        
+        // Filter data based on selections
+        function filterData() {
+            const salaryRange = document.getElementById('salaryFilter').value;
+            const turnoverRange = document.getElementById('turnoverFilter').value;
+            const employeeRange = document.getElementById('employeeFilter').value;
+            const showZeroTurnover = document.getElementById('showZeroTurnover').checked;
+            
+            filteredData = allData.filter(d => {
+                let pass = true;
+                
+                // Salary filter
+                if (salaryRange !== 'all') {
+                    const [min, max] = salaryRange.split('-').map(Number);
+                    if (d.avgHourlyRate < min || d.avgHourlyRate >= max) pass = false;
+                }
+                
+                // Turnover filter
+                if (turnoverRange !== 'all') {
+                    if (turnoverRange === 'zero' && d.turnoverRate !== 0) pass = false;
+                    if (turnoverRange === 'low' && (d.turnoverRate === 0 || d.turnoverRate > 25)) pass = false;
+                    if (turnoverRange === 'medium' && (d.turnoverRate < 25 || d.turnoverRate > 50)) pass = false;
+                    if (turnoverRange === 'high' && d.turnoverRate < 50) pass = false;
+                }
+                
+                // Employee filter
+                if (employeeRange !== 'all') {
+                    if (employeeRange === 'small' && d.initialEmployees > 3) pass = false;
+                    if (employeeRange === 'medium' && (d.initialEmployees < 4 || d.initialEmployees > 6)) pass = false;
+                    if (employeeRange === 'large' && d.initialEmployees < 7) pass = false;
+                }
+                
+                // Hide zero turnover if unchecked
+                if (!showZeroTurnover && d.turnoverRate === 0) pass = false;
+                
+                return pass;
+            });
+            
+            return filteredData;
+        }
+        
+        // Update chart
+        function updateChart() {
+            const filtered = filterData();
+            
+            if (filtered.length === 0) {
+                document.getElementById('chart').innerHTML = '<div class="no-data">No data matching filter criteria</div>';
+                document.getElementById('legend').innerHTML = '';
+                document.getElementById('binLegend').innerHTML = '';
+                document.getElementById('statsInfo').textContent = 'No matching data for current filters';
+                return;
+            }
+            
+            // Update statistics info
+            const zeroCount = filtered.filter(d => d.turnoverRate === 0).length;
+            const nonZeroCount = filtered.filter(d => d.turnoverRate > 0).length;
+            document.getElementById('statsInfo').textContent = 
+                `Showing ${filtered.length} companies (${zeroCount} with zero turnover, ${nonZeroCount} with turnover > 0%)`;
+            
+            drawChart(filtered);
+            drawLegend(filtered);
+        }
+        
+        // Draw chart
+        function drawChart(data) {
+            const chartContainer = document.getElementById('chart');
+            chartContainer.innerHTML = '';
+            
+            const showAvgLines = document.getElementById('showAvgLines').checked;
+            const showBinLines = document.getElementById('showBinLines').checked;
+            const showGrid = document.getElementById('showGrid').checked;
+            
+            const containerWidth = chartContainer.clientWidth;
+            const containerHeight = 550;
+            
+            const margin = { top: 30, right: 100, bottom: 50, left: 70 };
+            const width = containerWidth - margin.left - margin.right;
+            const height = containerHeight - margin.top - margin.bottom;
+            
+            // Separate zero and non-zero turnover data
+            const zeroTurnover = data.filter(d => d.turnoverRate === 0);
+            const nonZeroTurnover = data.filter(d => d.turnoverRate > 0);
+            
+            // Calculate averages (excluding zero turnover rate)
+            const avgTurnover = nonZeroTurnover.length > 0 ? d3.mean(nonZeroTurnover, d => d.turnoverRate) : 0;
+            const avgHourlyRate = d3.mean(data, d => d.avgHourlyRate);
+            
+            // Calculate bin statistics
+            const binStats = bins.map(bin => {
+                const binData = nonZeroTurnover.filter(d => 
+                    d.avgHourlyRate >= bin.range[0] && d.avgHourlyRate < bin.range[1]
+                );
+                return {
+                    ...bin,
+                    avgTurnover: binData.length > 0 ? d3.mean(binData, d => d.turnoverRate) : 0,
+                    count: binData.length,
+                    avgX: binData.length > 0 ? d3.mean(binData, d => d.avgHourlyRate) : (bin.range[0] + bin.range[1]) / 2
+                };
+            });
+            
+            const svg = d3.select('#chart')
+                .append('svg')
+                .attr('width', containerWidth)
+                .attr('height', containerHeight)
+                .append('g')
+                .attr('transform', `translate(${margin.left}, ${margin.top})`);
+            
+            // Set scales
+            const xScale = d3.scaleLinear()
+                .domain([5, 42])
+                .range([0, width]);
+            
+            const yScale = d3.scaleLinear()
+                .domain([-5, 105])
+                .range([height, 0]);
+            
+            const sizeScale = d3.scaleSqrt()
+                .domain([1, 10])
+                .range([3, 12]);
+            
+            const colorScale = d3.scaleSequential()
+                .domain([0, 100])
+                .interpolator(d3.interpolateYlOrRd);
+            
+            // Draw grid
+            if (showGrid) {
+                svg.append("g")
+                    .attr("class", "grid")
+                    .selectAll("line.grid-line")
+                    .data(yScale.ticks(10))
+                    .enter()
+                    .append("line")
+                    .attr("class", "grid-line")
+                    .attr("x1", 0)
+                    .attr("x2", width)
+                    .attr("y1", d => yScale(d))
+                    .attr("y2", d => yScale(d));
+                
+                svg.append("g")
+                    .attr("class", "grid")
+                    .selectAll("line.grid-line")
+                    .data(xScale.ticks(8))
+                    .enter()
+                    .append("line")
+                    .attr("class", "grid-line")
+                    .attr("x1", d => xScale(d))
+                    .attr("x2", d => xScale(d))
+                    .attr("y1", 0)
+                    .attr("y2", height);
+            }
+            
+            // Draw axes
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).ticks(8).tickFormat(d => `$${d}`))
+                .append("text")
+                .attr("class", "axis-label")
+                .attr("x", width / 2)
+                .attr("y", 40)
+                .attr("fill", "#333")
+                .attr("text-anchor", "middle")
+                .text("Average Hourly Rate ($)");
+            
+            svg.append("g")
+                .call(d3.axisLeft(yScale).ticks(10).tickFormat(d => `${d}%`))
+                .append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -height / 2)
+                .attr("y", -50)
+                .attr("fill", "#333")
+                .attr("text-anchor", "middle")
+                .text("Turnover Rate (%)");
+            
+            // Draw average lines
+            if (showAvgLines && nonZeroTurnover.length > 0) {
+                // Average turnover rate line (blue)
+                svg.append("line")
+                    .attr("class", "avg-line")
+                    .attr("x1", 0)
+                    .attr("x2", width)
+                    .attr("y1", yScale(avgTurnover))
+                    .attr("y2", yScale(avgTurnover))
+                    .attr("stroke", "#3b82f6")
+                    .attr("stroke-width", 2)
+                    .attr("opacity", 0.7);
+                
+                svg.append("text")
+                    .attr("class", "avg-label")
+                    .attr("x", width - 5)
+                    .attr("y", yScale(avgTurnover) - 8)
+                    .attr("fill", "#3b82f6")
+                    .attr("text-anchor", "end")
+                    .text(`Avg Turnover: ${avgTurnover.toFixed(1)}%`);
+                
+                // Average salary line (green)
+                svg.append("line")
+                    .attr("class", "avg-line")
+                    .attr("x1", xScale(avgHourlyRate))
+                    .attr("x2", xScale(avgHourlyRate))
+                    .attr("y1", 0)
+                    .attr("y2", height)
+                    .attr("stroke", "#22c55e")
+                    .attr("stroke-width", 2)
+                    .attr("opacity", 0.7);
+                
+                svg.append("text")
+                    .attr("class", "avg-label")
+                    .attr("x", xScale(avgHourlyRate) + 5)
+                    .attr("y", 15)
+                    .attr("fill", "#22c55e")
+                    .text(`Avg Hourly Rate: $${avgHourlyRate.toFixed(1)}`);
+            }
+            
+            // Draw bin average lines and hover areas
+            if (showBinLines) {
+                binStats.forEach((bin, i) => {
+                    // Add hover area
+                    svg.append("rect")
+                        .attr("class", "bin-area")
+                        .attr("x", xScale(bin.range[0]))
+                        .attr("y", 0)
+                        .attr("width", xScale(bin.range[1]) - xScale(bin.range[0]))
+                        .attr("height", height)
+                        .attr("fill", bin.color)
+                        .on("mouseover", function(event) {
+                            d3.select(this).attr("fill-opacity", 0.15);
+                            showBinTooltip(event, bin);
+                        })
+                        .on("mousemove", moveTooltip)
+                        .on("mouseout", function(event) {
+                            d3.select(this).attr("fill-opacity", 0);
+                            hideTooltip();
+                        });
+                    
+                    // Draw average turnover rate line
+                    if (bin.count > 0) {
+                        svg.append("line")
+                            .attr("x1", xScale(bin.range[0]))
+                            .attr("x2", xScale(bin.range[1]))
+                            .attr("y1", yScale(bin.avgTurnover))
+                            .attr("y2", yScale(bin.avgTurnover))
+                            .attr("stroke", bin.color)
+                            .attr("stroke-width", 3)
+                            .attr("opacity", 0.8);
+                    }
+                });
+            }
+            
+            // Tooltip
+            const tooltip = d3.select('#tooltip');
+            const multiTooltip = d3.select('#multiTooltip');
+            
+            // Draw grey bubbles for zero turnover rate
+            svg.selectAll(".bubble-zero")
+                .data(zeroTurnover)
+                .enter()
+                .append("circle")
+                .attr("class", "bubble zero-turnover")
+                .attr("cx", d => xScale(d.avgHourlyRate))
+                .attr("cy", d => yScale(d.turnoverRate))
+                .attr("r", d => sizeScale(d.initialEmployees))
+                .attr("fill", "#999")
+                .attr("fill-opacity", d => highlightedCompanyId && d.employerId !== highlightedCompanyId ? 0.15 : 0.5)
+                .attr("stroke", d => highlightedCompanyId && d.employerId === highlightedCompanyId ? "#ff0000" : "#666")
+                .attr("stroke-width", d => highlightedCompanyId && d.employerId === highlightedCompanyId ? 3 : 1)
+                .on("mouseover", showTooltip)
+                .on("mousemove", moveTooltip)
+                .on("mouseout", hideTooltip);
+            
+            // Draw colored bubbles for non-zero turnover rate
+            svg.selectAll(".bubble-color")
+                .data(nonZeroTurnover)
+                .enter()
+                .append("circle")
+                .attr("class", "bubble non-zero-turnover")
+                .attr("cx", d => xScale(d.avgHourlyRate))
+                .attr("cy", d => yScale(d.turnoverRate))
+                .attr("r", d => sizeScale(d.initialEmployees))
+                .attr("fill", d => colorScale(d.turnoverRate))
+                .attr("fill-opacity", d => highlightedCompanyId && d.employerId !== highlightedCompanyId ? 0.2 : 0.7)
+                .attr("stroke", d => highlightedCompanyId && d.employerId === highlightedCompanyId ? "#ff0000" : "#333")
+                .attr("stroke-width", d => highlightedCompanyId && d.employerId === highlightedCompanyId ? 3 : 1)
+                .on("mouseover", showTooltip)
+                .on("mousemove", moveTooltip)
+                .on("mouseout", hideTooltip);
+            
+            // If a company is highlighted, show info box
+            if (highlightedCompanyId) {
+                const highlightedData = data.find(d => d.employerId === highlightedCompanyId);
+                if (highlightedData) {
+                    svg.append("rect")
+                        .attr("x", xScale(highlightedData.avgHourlyRate) - 60)
+                        .attr("y", yScale(highlightedData.turnoverRate) - 45)
+                        .attr("width", 120)
+                        .attr("height", 35)
+                        .attr("fill", "white")
+                        .attr("stroke", "#ff0000")
+                        .attr("stroke-width", 2)
+                        .attr("rx", 4);
+                    
+                    svg.append("text")
+                        .attr("x", xScale(highlightedData.avgHourlyRate))
+                        .attr("y", yScale(highlightedData.turnoverRate) - 25)
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 11)
+                        .attr("fill", "#333")
+                        .text(`Company ${highlightedCompanyId}`);
+                    
+                    svg.append("text")
+                        .attr("x", xScale(highlightedData.avgHourlyRate))
+                        .attr("y", yScale(highlightedData.turnoverRate) - 12)
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("fill", "#666")
+                        .text(`Turnover: ${highlightedData.turnoverRate.toFixed(1)}%`);
+                }
+            }
+            
+            // Add bubble size legend
+            const sizeLegendG = svg.append("g")
+                .attr("transform", `translate(${width - 80}, 10)`);
+            
+            sizeLegendG.append("text")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("font-size", 11)
+                .attr("fill", "#333")
+                .text("Employees");
+            
+            const sizeLegendData = [
+                { r: 4, label: "2" },
+                { r: 7, label: "5" },
+                { r: 10, label: "9" }
+            ];
+            
+            sizeLegendData.forEach((d, i) => {
+                sizeLegendG.append("circle")
+                    .attr("cx", 15)
+                    .attr("cy", 20 + i * 25)
+                    .attr("r", d.r)
+                    .attr("fill", "#999")
+                    .attr("opacity", 0.7);
+                
+                sizeLegendG.append("text")
+                    .attr("x", 35)
+                    .attr("y", 20 + i * 25 + 4)
+                    .attr("font-size", 10)
+                    .attr("fill", "#666")
+                    .text(d.label);
+            });
+            
+            // Add turnover rate color legend
+            const colorLegendG = svg.append("g")
+                .attr("transform", `translate(${width + 10}, 50)`);
+            
+            colorLegendG.append("text")
+                .attr("x", 15)
+                .attr("y", -5)
+                .attr("font-size", 11)
+                .attr("fill", "#333")
+                .attr("text-anchor", "middle")
+                .text("Turnover");
+            
+            // Create gradient
+            const defs = svg.append("defs");
+            const gradient = defs.append("linearGradient")
+                .attr("id", "colorGradient")
+                .attr("x1", "0%")
+                .attr("y1", "100%")
+                .attr("x2", "0%")
+                .attr("y2", "0%");
+            
+            gradient.append("stop").attr("offset", "0%").attr("stop-color", "#ffffcc");
+            gradient.append("stop").attr("offset", "20%").attr("stop-color", "#ffdaa6");
+            gradient.append("stop").attr("offset", "40%").attr("stop-color", "#fdae6b");
+            gradient.append("stop").attr("offset", "60%").attr("stop-color", "#fd8d3c");
+            gradient.append("stop").attr("offset", "80%").attr("stop-color", "#f6521c");
+            gradient.append("stop").attr("offset", "100%").attr("stop-color", "#d9271a");
+            
+            colorLegendG.append("rect")
+                .attr("x", 5)
+                .attr("y", 5)
+                .attr("width", 20)
+                .attr("height", 150)
+                .attr("fill", "url(#colorGradient)")
+                .attr("stroke", "#ccc")
+                .attr("stroke-width", 1);
+            
+            colorLegendG.append("text")
+                .attr("x", 35)
+                .attr("y", 10)
+                .attr("font-size", 10)
+                .attr("fill", "#666")
+                .text("100%");
+            
+            colorLegendG.append("text")
+                .attr("x", 35)
+                .attr("y", 80)
+                .attr("font-size", 10)
+                .attr("fill", "#666")
+                .text("50%");
+            
+            colorLegendG.append("text")
+                .attr("x", 35)
+                .attr("y", 155)
+                .attr("font-size", 10)
+                .attr("fill", "#666")
+                .text("0%");
+            
+            // Add selection circle indicator for area bubble selection
+            const selectionCircle = svg.append("circle")
+                .attr("class", "selection-indicator")
+                .attr("r", 25)
+                .attr("fill", "none")
+                .attr("stroke", "#3b82f6")
+                .attr("stroke-width", 1)
+                .attr("stroke-dasharray", "4,4")
+                .attr("opacity", 0);
+            
+            // Combine all bubbles for selection
+            const allBubbles = [...zeroTurnover, ...nonZeroTurnover];
+            
+            // Add transparent interaction layer for bubble selection
+            svg.append("rect")
+                .attr("class", "interaction-layer")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("width", width)
+                .attr("height", height)
+                .attr("fill", "transparent")
+                .attr("cursor", "crosshair")
+                .on("mousemove", function(event) {
+                    const [mx, my] = d3.pointer(event);
+                    const searchRadius = 25;
+                    
+                    // Find nearby bubbles
+                    const nearbyBubbles = [];
+                    allBubbles.forEach(d => {
+                        const bx = xScale(d.avgHourlyRate);
+                        const by = yScale(d.turnoverRate);
+                        const distance = Math.sqrt((mx - bx) ** 2 + (my - by) ** 2);
+                        
+                        if (distance <= searchRadius + sizeScale(d.initialEmployees)) {
+                            nearbyBubbles.push({
+                                ...d,
+                                distance: distance
+                            });
+                        }
+                    });
+
+                    if (nearbyBubbles.length > 0) {
+                        // Sort by distance
+                        nearbyBubbles.sort((a, b) => a.distance - b.distance);
+                        
+                        // Show selection circle
+                        selectionCircle
+                            .attr("cx", mx)
+                            .attr("cy", my)
+                            .attr("opacity", 0.5);
+                        
+                        // Show multi-bubble tooltip
+                        const htmlContent = nearbyBubbles.slice(0, 10).map((d, i) => `
+                            <div class="multi-tooltip-item">
+                                <strong>Company ${d.employerId}</strong> |
+                                Hourly Rate: $${d.avgHourlyRate.toFixed(1)} |
+                                Employees: ${d.initialEmployees} |
+                                Turnover: ${d.turnoverRate.toFixed(1)}%
+                            </div>
+                        `).join("");
+                        
+                        multiTooltip
+                            .classed("active", true)
+                            .html(`
+                                <div class="multi-tooltip-title">Found ${nearbyBubbles.length} companies in area</div>
+                                ${htmlContent}
+                                ${nearbyBubbles.length > 10 ? '<div style="color: #666; font-size: 11px;">...and more</div>' : ''}
+                            `)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                        
+                        // Highlight selected bubbles
+                        svg.selectAll(".bubble")
+                            .attr("stroke-width", d => {
+                                const isNearby = nearbyBubbles.some(n => n.employerId === d.employerId);
+                                return isNearby ? 3 : 1;
+                            })
+                            .attr("stroke", d => {
+                                const isNearby = nearbyBubbles.some(n => n.employerId === d.employerId);
+                                return isNearby ? "#3b82f6" : (d.turnoverRate === 0 ? "#666" : "#333");
+                            });
+                    } else {
+                        selectionCircle.attr("opacity", 0);
+                        multiTooltip.classed("active", false);
+                        
+                        // Restore bubble styles
+                        svg.selectAll(".bubble")
+                            .attr("stroke-width", 1)
+                            .attr("stroke", d => d.turnoverRate === 0 ? "#666" : "#333");
+                    }
+                })
+                .on("mouseleave", function() {
+                    selectionCircle.attr("opacity", 0);
+                    multiTooltip.classed("active", false);
+                    
+                    // Restore bubble styles
+                    svg.selectAll(".bubble")
+                        .attr("stroke-width", 1)
+                        .attr("stroke", d => d.turnoverRate === 0 ? "#666" : "#333");
+                });
+            
+            // Tooltip functions
+            function showTooltip(event, d) {
+                tooltip
+                    .classed("active", true)
+                    .html(`
+                        <div class="tooltip-title">Company ID: ${d.employerId}</div>
+                        <div class="tooltip-row">Avg Hourly Rate: <span>$${d.avgHourlyRate.toFixed(2)}</span></div>
+                        <div class="tooltip-row">Initial Employees: <span>${d.initialEmployees}</span></div>
+                        <div class="tooltip-row">Employees Left: <span>${d.leftEmployees}</span></div>
+                        <div class="tooltip-row">Turnover Rate: <span>${d.turnoverRate.toFixed(2)}%</span></div>
+                    `);
+            }
+            
+            function moveTooltip(event) {
+                tooltip
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+            }
+            
+            function hideTooltip() {
+                tooltip.classed("active", false);
+            }
+            
+            function showBinTooltip(event, bin) {
+                tooltip
+                    .classed("active", true)
+                    .html(`
+                        <div class="tooltip-title" style="color: ${bin.color}">Salary Range: ${bin.label}</div>
+                        <div class="tooltip-row">Number of Companies: <span>${bin.count}</span></div>
+                        <div class="tooltip-row">Avg Turnover Rate: <span>${bin.avgTurnover.toFixed(1)}%</span></div>
+                        <div class="tooltip-row">Salary Range: <span>$${bin.range[0]} - $${bin.range[1]}</span></div>
+                    `);
+            }
+            
+            // Update bin legend
+            const binLegendHtml = binStats.map(bin => `
+                <div class="bin-legend-item">
+                    <div class="bin-line" style="background: ${bin.color};"></div>
+                    <span>${bin.label}: ${bin.avgTurnover.toFixed(1)}% (${bin.count} companies)</span>
+                </div>
+            `).join("");
+            document.getElementById("binLegend").innerHTML = binLegendHtml;
+        }
+        
+        // Draw legend
+        function drawLegend(data) {
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+        }
+        
+        // Listen for filter changes
+        document.getElementById('salaryFilter').addEventListener('change', updateChart);
+        document.getElementById('turnoverFilter').addEventListener('change', updateChart);
+        document.getElementById('employeeFilter').addEventListener('change', updateChart);
+        document.getElementById('showZeroTurnover').addEventListener('change', updateChart);
+        document.getElementById('showAvgLines').addEventListener('change', updateChart);
+        document.getElementById('showBinLines').addEventListener('change', updateChart);
+        document.getElementById('showGrid').addEventListener('change', updateChart);
+        
+        // Company search functionality
+        document.getElementById('companySearch').addEventListener('input', function(e) {
+            const searchValue = e.target.value.trim();
+            if (searchValue === '') {
+                highlightedCompanyId = null;
+            } else {
+                const id = parseInt(searchValue);
+                if (!isNaN(id) && allData.some(d => d.employerId === id)) {
+                    highlightedCompanyId = id;
+                } else {
+                    highlightedCompanyId = null;
+                }
+            }
+            updateChart();
+        });
+        
+        // Redraw on window resize
+        window.addEventListener('resize', updateChart);
+    </script>
+</body>
+</html>

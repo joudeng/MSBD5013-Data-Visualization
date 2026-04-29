@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Income vs Expense Scatter Plot</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .filter-section {
+            margin-bottom: 25px;
+        }
+        
+        .filter-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .filter-section select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .filter-section select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .group-section h3 {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .group-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .group-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px 10px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .group-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .group-item.selected {
+            background: #e8f5e9;
+        }
+        
+        .group-item input[type="radio"] {
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        
+        .group-item label {
+            font-size: 13px;
+            cursor: pointer;
+            color: #333;
+        }
+        
+        .group-item:hover label {
+            color: #4CAF50;
+        }
+        
+        .chart-area {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-area h1 {
+            margin: 0 0 20px 0;
+            font-size: 22px;
+            color: #333;
+        }
+        
+        .stats-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 500px;
+            position: relative;
+        }
+        
+        .tooltip {
+            position: absolute;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+        }
+        
+        .tooltip.active {
+            opacity: 1;
+        }
+        
+        .tooltip-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .tooltip-row {
+            margin: 4px 0;
+            color: #555;
+        }
+        
+        .tooltip-row span {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        
+        .legend-item:hover {
+            background: #f0f0f0;
+        }
+        
+        .legend-item.selected {
+            background: #e8f5e9;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        
+        .legend-circle {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+        
+        .axis-label {
+            font-size: 12px;
+            fill: #666;
+        }
+        
+        .grid-line {
+            stroke: #eee;
+            stroke-dasharray: 3,3;
+        }
+        
+        .scatter-point {
+            stroke-width: 1;
+            cursor: pointer;
+            transition: stroke-width 0.2s, fill-opacity 0.2s;
+        }
+        
+        .scatter-point:hover {
+            stroke-width: 2;
+            fill-opacity: 1;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .y-axis-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: 500;
+        }
+
+        .x-axis-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Data Filter</h2>
+            
+            <div class="filter-section">
+                <h3>Education Level</h3>
+                <select id="educationFilter">
+                    <option value="all">All</option>
+                    <option value="Low">Low</option>
+                    <option value="HighSchoolOrCollege">High School/College</option>
+                    <option value="Bachelors">Bachelors</option>
+                    <option value="Graduate">Graduate</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Age Group</h3>
+                <select id="ageGroupFilter">
+                    <option value="all">All</option>
+                    <option value="18-25">18-25 years</option>
+                    <option value="26-35">26-35 years</option>
+                    <option value="36-45">36-45 years</option>
+                    <option value="46-55">46-55 years</option>
+                    <option value="56-60">56-60 years</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Family Structure</h3>
+                <select id="householdFilter">
+                    <option value="all">All</option>
+                    <option value="1-noKids">1-Person (No Kids)</option>
+                    <option value="2-noKids">2-Person (No Kids)</option>
+                    <option value="3-hasKids">3-Person (With Kids)</option>
+                </select>
+            </div>
+            
+            <div class="filter-section group-section">
+                <h3>Color Grouping Method</h3>
+                <div class="group-list">
+                    <div class="group-item selected">
+                        <input type="radio" id="group_education" name="groupBy" value="education" checked>
+                        <label for="group_education">By Education Level</label>
+                    </div>
+                    <div class="group-item">
+                        <input type="radio" id="group_age" name="groupBy" value="age">
+                        <label for="group_age">By Age Group</label>
+                    </div>
+                    <div class="group-item">
+                        <input type="radio" id="group_household" name="groupBy" value="household">
+                        <label for="group_household">By Household Structure</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-area">
+            <h1>Monthly Income vs Monthly Expense Scatter Plot</h1>
+            <div class="stats-info" id="statsInfo">Loading data...</div>
+            <div id="chart"></div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+    
+    <script>
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let svg, g, xScale, yScale;
+        let currentGroupBy = 'education';
+        let selectedLegendGroup = null;
+
+        // Education level color mapping
+        const educationColors = {
+            'Low': '#F44336',
+            'HighSchoolOrCollege': '#FF9800',
+            'Bachelors': '#2196F3',
+            'Graduate': '#9C27B0'
+        };
+
+        const educationLabels = {
+            'Low': 'Low Education',
+            'HighSchoolOrCollege': 'High School/College',
+            'Bachelors': 'Bachelors',
+            'Graduate': 'Graduate'
+        };
+
+        // Age group color mapping
+        const ageColors = {
+            '18-25': '#4CAF50',
+            '26-35': '#2196F3',
+            '36-45': '#9C27B0',
+            '46-55': '#FF9800',
+            '56-60': '#F44336'
+        };
+
+        const ageLabels = {
+            '18-25': '18-25 years',
+            '26-35': '26-35 years',
+            '36-45': '36-45 years',
+            '46-55': '46-55 years',
+            '56-60': '56-60 years'
+        };
+
+        // Household structure color mapping
+        const householdColors = {
+            '1-noKids': '#00BCD4',
+            '2-noKids': '#2196F3',
+            '3-hasKids': '#F44336'
+        };
+
+        const householdLabels = {
+            '1-noKids': '1-Person Household (No Kids)',
+            '2-noKids': '2-Person Household (No Kids)',
+            '3-hasKids': '3-Person Household (With Kids)'
+        };
+
+        // Get household structure group key
+        function getHouseholdKey(d) {
+            const size = parseInt(d.householdSize);
+            const hasKids = d.haveKids === 'True';
+            if (size === 1) return '1-noKids';
+            if (size === 2) return '2-noKids';
+            if (size === 3) return hasKids ? '3-hasKids' : '3-noKids';
+            return 'other';
+        }
+
+        // Get color and label
+        function getColor(d) {
+            if (currentGroupBy === 'education') {
+                return educationColors[d.educationLevel];
+            } else if (currentGroupBy === 'age') {
+                return ageColors[d.age_group];
+            } else {
+                return householdColors[getHouseholdKey(d)];
+            }
+        }
+
+        function getGroupLabel(d) {
+            if (currentGroupBy === 'education') {
+                return educationLabels[d.educationLevel];
+            } else if (currentGroupBy === 'age') {
+                return ageLabels[d.age_group];
+            } else {
+                return householdLabels[getHouseholdKey(d)];
+            }
+        }
+
+        function getGroupKey(d) {
+            if (currentGroupBy === 'education') {
+                return d.educationLevel;
+            } else if (currentGroupBy === 'age') {
+                return d.age_group;
+            } else {
+                return getHouseholdKey(d);
+            }
+        }
+
+        // Filter data
+        function filterData() {
+            const education = document.getElementById('educationFilter').value;
+            const ageGroup = document.getElementById('ageGroupFilter').value;
+            const household = document.getElementById('householdFilter').value;
+            
+            filteredData = allData.filter(d => {
+                let pass = true;
+                if (education !== 'all' && d.educationLevel !== education) pass = false;
+                if (ageGroup !== 'all' && d.age_group !== ageGroup) pass = false;
+                if (household !== 'all' && getHouseholdKey(d) !== household) pass = false;
+                return pass;
+            });
+            
+            return filteredData;
+        }
+
+        // Update chart
+        function updateChart() {
+            const filtered = filterData();
+            
+            if (filtered.length === 0) {
+                document.getElementById('chart').innerHTML = '<div class="no-data">No data matching filter criteria</div>';
+                document.getElementById('legend').innerHTML = '';
+                document.getElementById('statsInfo').textContent = 'No matching data for current filters';
+                return;
+            }
+            
+            document.getElementById('statsInfo').textContent = 
+                `Showing ${filtered.length} participants`;
+            
+            drawScatter(filtered);
+            updateLegend();
+        }
+
+        // Initialize SVG
+        function initSVG() {
+            const chartContainer = document.getElementById('chart');
+            chartContainer.innerHTML = '';
+            
+            const containerWidth = chartContainer.clientWidth;
+            const containerHeight = 500;
+            
+            const margin = { top: 30, right: 80, bottom: 50, left: 100 };
+            const width = containerWidth - margin.left - margin.right;
+            const height = containerHeight - margin.top - margin.bottom;
+            
+            svg = d3.select('#chart')
+                .append('svg')
+                .attr('width', containerWidth)
+                .attr('height', containerHeight);
+            
+            g = svg.append('g')
+                .attr('transform', `translate(${margin.left}, ${margin.top})`);
+            
+            // Store dimensions for later use
+            svg._width = width;
+            svg._height = height;
+        }
+
+        // Draw axes and grid
+        function drawAxes(data) {
+            const width = svg._width;
+            const height = svg._height;
+            
+            // Clear old axes
+            g.selectAll(".axis-group").remove();
+            g.selectAll(".grid").remove();
+
+            // Calculate range using data
+            const incomeExtent = d3.extent(data, d => d.monthly_income);
+            const expenseExtent = d3.extent(data, d => d.monthly_expense);
+
+            // Set scales
+            xScale = d3.scaleLinear()
+                .domain([0, expenseExtent[1] * 1.1])
+                .range([0, width]);
+
+            yScale = d3.scaleLinear()
+                .domain([0, incomeExtent[1] * 1.1])
+                .range([height, 0]);
+
+            // Draw grid lines
+            g.append('g')
+                .attr('class', 'grid')
+                .attr('transform', `translate(0, ${height})`)
+                .call(d3.axisBottom(xScale)
+                    .ticks(10)
+                    .tickSize(-height)
+                    .tickFormat('')
+                )
+                .selectAll('line')
+                .attr('class', 'grid-line');
+
+            g.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(yScale)
+                    .ticks(8)
+                    .tickSize(-width)
+                    .tickFormat('')
+                )
+                .selectAll('line')
+                .attr('class', 'grid-line');
+
+            // Draw X axis
+            g.append('g')
+                .attr('class', 'axis-group')
+                .attr('transform', `translate(0, ${height})`)
+                .call(d3.axisBottom(xScale).ticks(10).tickFormat(d => `$${d.toLocaleString()}`))
+                .selectAll('text')
+                .attr('fill', '#666')
+                .attr('font-size', '12px');
+
+            g.append('text')
+                .attr('class', 'x-axis-label')
+                .attr('x', width / 2)
+                .attr('y', height + 40)
+                .attr('text-anchor', 'middle')
+                .text('Monthly Expense ($)');
+
+            // Draw Y axis
+            g.append('g')
+                .attr('class', 'axis-group')
+                .call(d3.axisLeft(yScale).ticks(8).tickFormat(d => `$${d.toLocaleString()}`))
+                .selectAll('text')
+                .attr('fill', '#666')
+                .attr('font-size', '12px');
+
+            g.append('text')
+                .attr('class', 'y-axis-label')
+                .attr('transform', 'rotate(-90)')
+                .attr('x', -height / 2)
+                .attr('y', -70)
+                .attr('text-anchor', 'middle')
+                .text('Monthly Income ($)');
+        }
+
+        // Draw scatter points
+        function drawScatter(data) {
+            initSVG();
+            drawAxes(data);
+            
+            const tooltip = d3.select('#tooltip');
+            
+            // Draw scatter points
+            g.selectAll('.scatter-point')
+                .data(data)
+                .enter()
+                .append('circle')
+                .attr('class', 'scatter-point')
+                .attr('cx', d => xScale(d.monthly_expense))
+                .attr('cy', d => yScale(d.monthly_income))
+                .attr('r', 5)
+                .attr('fill', d => getColor(d))
+                .attr('fill-opacity', d => {
+                    if (selectedLegendGroup === null) return 0.7;
+                    return getGroupKey(d) === selectedLegendGroup ? 0.9 : 0.15;
+                })
+                .attr('stroke', d => getColor(d))
+                .attr('stroke-opacity', d => {
+                    if (selectedLegendGroup === null) return 1;
+                    return getGroupKey(d) === selectedLegendGroup ? 1 : 0.3;
+                })
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('r', 7);
+                    
+                    tooltip
+                        .classed('active', true)
+                        .html(`
+                            <div class="tooltip-title">Participant ID: ${d.participantId}</div>
+                            <div class="tooltip-row">Monthly Income: <span>$${d.monthly_income.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                            <div class="tooltip-row">Monthly Expense: <span>$${d.monthly_expense.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                            <div class="tooltip-row">Age: <span>${d.age} years (${ageLabels[d.age_group]})</span></div>
+                            <div class="tooltip-row">Education Level: <span>${educationLabels[d.educationLevel]}</span></div>
+                            <div class="tooltip-row">Household Size: <span>${d.householdSize} people</span></div>
+                            <div class="tooltip-row">Has Kids: <span>${d.haveKids === 'True' ? 'Yes' : 'No'}</span></div>
+                        `)
+                        .style('left', (event.pageX + 15) + 'px')
+                        .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function(event, d) {
+                    d3.select(this).attr('r', 5);
+                    tooltip.classed('active', false);
+                });
+        }
+
+        // Update legend
+        function updateLegend() {
+            selectedLegendGroup = null;
+            let colors, labels;
+            
+            if (currentGroupBy === 'education') {
+                colors = educationColors;
+                labels = educationLabels;
+            } else if (currentGroupBy === 'age') {
+                colors = ageColors;
+                labels = ageLabels;
+            } else {
+                colors = householdColors;
+                labels = householdLabels;
+            }
+            
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+            
+            Object.keys(colors).forEach(key => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.setAttribute('data-key', key);
+                item.innerHTML = `
+                    <div class="legend-circle" style="background: ${colors[key]};"></div>
+                    <span>${labels[key]}</span>
+                `;
+                item.addEventListener('click', () => onLegendClick(key));
+                legendContainer.appendChild(item);
+            });
+        }
+
+        // Legend click handler
+        function onLegendClick(groupKey) {
+            if (selectedLegendGroup === groupKey) {
+                // Deselect
+                selectedLegendGroup = null;
+            } else {
+                // Select new group
+                selectedLegendGroup = groupKey;
+            }
+            updatePointHighlight();
+            updateLegendSelection();
+        }
+
+        // Update scatter point highlight state
+        function updatePointHighlight() {
+            g.selectAll('.scatter-point')
+                .attr('fill-opacity', d => {
+                    if (selectedLegendGroup === null) return 0.7;
+                    return getGroupKey(d) === selectedLegendGroup ? 0.9 : 0.15;
+                })
+                .attr('stroke-opacity', d => {
+                    if (selectedLegendGroup === null) return 1;
+                    return getGroupKey(d) === selectedLegendGroup ? 1 : 0.3;
+                });
+        }
+
+        // Update legend selection state
+        function updateLegendSelection() {
+            document.querySelectorAll('.legend-item').forEach(item => {
+                const groupKey = item.getAttribute('data-key');
+                if (selectedLegendGroup === groupKey) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // Main function
+        d3.csv('chart3_scatter.csv').then(data => {
+            // Data preprocessing
+            data.forEach(d => {
+                d.participantId = +d.participantId;
+                d.monthly_income = +d.monthly_income;
+                d.monthly_expense = +d.monthly_expense;
+                d.age = +d.age;
+                d.householdSize = +d.householdSize;
+            });
+            
+            allData = data;
+            
+            // Initialize chart
+            updateChart();
+            
+            console.log(`Data loaded successfully, ${allData.length} records total`);
+        }).catch(error => {
+            console.error('Data loading failed:', error);
+            document.getElementById('chart').innerHTML = '<div class="no-data">Data loading failed, please ensure chart3_scatter.csv exists</div>';
+            document.getElementById('statsInfo').textContent = 'Data loading failed';
+        });
+        
+        // Listen for filter changes
+        document.getElementById('educationFilter').addEventListener('change', updateChart);
+        document.getElementById('ageGroupFilter').addEventListener('change', updateChart);
+        document.getElementById('householdFilter').addEventListener('change', updateChart);
+        
+        // Listen for grouping method changes
+        document.querySelectorAll('input[name="groupBy"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                currentGroupBy = this.value;
+                
+                // Update radio button styles
+                document.querySelectorAll('.group-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                this.parentElement.classList.add('selected');
+                
+                updateChart();
+            });
+        });
+        
+        // Redraw on window resize
+        window.addEventListener('resize', updateChart);
+    </script>
+</body>
+</html>

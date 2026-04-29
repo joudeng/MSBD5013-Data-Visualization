@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Visualization Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+    /* Header Section - Compact Navigation */
+    .header {
+        background: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+    
+    .header-title {
+        font-size: 16px;
+        color: #333;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    
+    /* Chart Selector Tabs */
+    .chart-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .tab-btn:hover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .tab-btn.active {
+            background: #4CAF50;
+            border-color: #4CAF50;
+            color: white;
+        }
+        
+        /* Stats Info */
+        .stats-info {
+            font-size: 13px;
+            color: #666;
+            white-space: nowrap;
+        }
+        
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* iframe Container */
+        .iframe-container {
+            flex: 1;
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: opacity 0.3s;
+        }
+        
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .chart-tabs {
+                gap: 5px;
+            }
+            
+            .tab-btn {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            
+            .main-content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section with Chart Selector -->
+    <div class="header">
+        <div class="header-title">Data Visualization Dashboard</div>
+        
+        <div class="chart-tabs">
+            <button class="tab-btn active" data-chart="1" onclick="switchChart(1)">
+                Chart 1 - Trend
+            </button>
+            <button class="tab-btn" data-chart="2" onclick="switchChart(2)">
+                Chart 2 - Box Plot
+            </button>
+            <button class="tab-btn" data-chart="3" onclick="switchChart(3)">
+                Chart 3 - Scatter
+            </button>
+            <button class="tab-btn" data-chart="4" onclick="switchChart(4)">
+                Chart 4 - Parallel
+            </button>
+            <button class="tab-btn" data-chart="5" onclick="switchChart(5)">
+                Chart 5 - Bubble
+            </button>
+        </div>
+        
+        <div class="stats-info" id="statsInfo">
+            5 charts available
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="iframe-container" id="iframeContainer">
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Loading chart...</div>
+            </div>
+            <iframe id="chartFrame" src="1/chart1_trend_chart.html"></iframe>
+        </div>
+    </div>
+    
+    <script>
+        // Chart configurations
+        const chartConfigs = {
+            1: {
+                title: 'City Financial Trend Chart',
+                desc: 'Display monthly financial trend data by education level, age group, and household type',
+                info: 'Financial trends',
+                path: '1/chart1_trend_chart.html'
+            },
+            2: {
+                title: 'Income & Expense Box Plot Analysis',
+                desc: 'Box plot showing income, expense, and net cash flow distribution across different groups',
+                info: 'Box plot analysis',
+                path: '2/chart2_health_groups.html'
+            },
+            3: {
+                title: 'Monthly Income vs Expense Scatter Plot',
+                desc: 'Scatter plot displaying relationship between monthly income and expense, grouped by education, age, or household',
+                info: 'Scatter plot',
+                path: '3/chart3_scatter.html'
+            },
+            4: {
+                title: 'Participant Multi-Dimensional Parallel Coordinates',
+                desc: 'Parallel coordinates chart for comparing participant metrics across multiple dimensions',
+                info: 'Parallel coordinates',
+                path: '4/chart4_parallel_coordinates.html'
+            },
+            5: {
+                title: 'Company Turnover Rate vs Average Salary',
+                desc: 'Bubble chart showing company turnover rate vs average hourly rate, bubble size represents employee count',
+                info: 'Bubble chart',
+                path: '5/chart5_bubble_chart.html'
+            }
+
+        };
+        
+        let currentChart = 1;
+        
+        // Switch chart function
+        function switchChart(chartId) {
+            if (currentChart === chartId) return;
+            
+            currentChart = chartId;
+            const config = chartConfigs[chartId];
+            
+            // Update tab button states
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.dataset.chart) === chartId) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update stats info
+            document.getElementById('statsInfo').textContent = config.info;
+            
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.remove('hidden');
+            
+            // Update iframe source
+            const iframe = document.getElementById('chartFrame');
+            iframe.src = config.path;
+            
+            // Hide loading overlay when iframe loads
+            iframe.onload = function() {
+                setTimeout(() => {
+                    loadingOverlay.classList.add('hidden');
+                }, 100);
+            };
+        }
+        
+        // Initialize loading state
+        window.onload = function() {
+            const iframe = document.getElementById('chartFrame');
+            if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        };
+    </script>
+</body>
+</html>

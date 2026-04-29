@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Participant Monthly Stats</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .filter-section {
+            margin-bottom: 25px;
+        }
+        
+        .filter-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .filter-section select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .filter-section select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .metrics-section h3 {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .metrics-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .metric-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .metric-item input[type="checkbox"] {
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        
+        .metric-item label {
+            font-size: 13px;
+            cursor: pointer;
+            color: #333;
+        }
+        
+        .metric-item:hover label {
+            color: #4CAF50;
+        }
+        
+        .chart-area {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-area h1 {
+            margin: 0 0 20px 0;
+            font-size: 22px;
+            color: #333;
+        }
+        
+        .stats-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 500px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 100;
+        }
+        
+        .tooltip.active {
+            opacity: 1;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        
+        .axis-label {
+            font-size: 12px;
+            fill: #666;
+        }
+        
+        .grid-line {
+            stroke: #eee;
+            stroke-dasharray: 3,3;
+        }
+        
+        .line {
+            fill: none;
+            stroke-width: 2;
+        }
+        
+        .line:hover {
+            stroke-width: 3;
+        }
+        
+        .dot {
+            fill: white;
+            stroke-width: 2;
+            r: 4;
+        }
+        
+        .dot:hover {
+            r: 6;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .y-axis-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: 500;
+        }
+
+        .x-axis-label {
+            font-size: 14px;
+            fill: #333;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Data Filter</h2>
+            
+            <div class="filter-section">
+                <h3>Education Level</h3>
+                <select id="educationFilter">
+                    <option value="all">All</option>
+                    <option value="Low">Low</option>
+                    <option value="HighSchoolOrCollege">HighSchoolOrCollege</option>
+                    <option value="Bachelors">Bachelors</option>
+                    <option value="Graduate">Graduate</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Age Group</h3>
+                <select id="ageGroupFilter">
+                    <option value="all">All</option>
+                    <option value="18-25">18-25</option>
+                    <option value="26-35">26-35</option>
+                    <option value="36-45">36-45</option>
+                    <option value="46-55">46-55</option>
+                    <option value="56-60">56-60</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Family Size</h3>
+                <select id="familySizeFilter">
+                    <option value="all">All</option>
+                    <option value="Size1_NoKids">Size 1 - No Kids</option>
+                    <option value="Size2_NoKids">Size 2 - No Kids</option>
+                    <option value="Size3_Kids">Size 3 - With Kids</option>
+                </select>
+            </div>
+            
+            <div class="filter-section metrics-section">
+                <h3>Display Metrics (Check to show lines)</h3>
+                <div class="metrics-list">
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_income" value="total_income" checked>
+                        <label for="metric_income">Total Income</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_expense" value="total_expense" checked>
+                        <label for="metric_expense">Total Expense</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_net" value="total_net" checked>
+                        <label for="metric_net">Total Net</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_food" value="total_food_expense">
+                        <label for="metric_food">Food Expense</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_recreation" value="total_recreation_expense">
+                        <label for="metric_recreation">Recreation Expense</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_shelter" value="total_shelter_expense">
+                        <label for="metric_shelter">Shelter Expense</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_education" value="total_education_expense">
+                        <label for="metric_education">Education Expense</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_balance" value="avg_availableBalance">
+                        <label for="metric_balance">Avg Available Balance</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_dailyFood" value="avg_dailyFoodBudget">
+                        <label for="metric_dailyFood">Avg Daily Food Budget</label>
+                    </div>
+                    <div class="metric-item">
+                        <input type="checkbox" id="metric_weeklyExtra" value="avg_weeklyExtraBudget">
+                        <label for="metric_weeklyExtra">Avg Weekly Extra Budget</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-area">
+            <h1>City Financial Trend Chart</h1>
+            <div class="stats-info" id="statsInfo">Please select filters and metrics to view trend data</div>
+            <div id="chart"></div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+    
+    <script>
+        // Metric name mapping
+        const metricNames = {
+            'total_income': 'Total Income',
+            'total_expense': 'Total Expense',
+            'total_net': 'Total Net',
+            'total_food_expense': 'Food Expense',
+            'total_recreation_expense': 'Recreation Expense',
+            'total_shelter_expense': 'Shelter Expense',
+            'total_education_expense': 'Education Expense',
+            'avg_availableBalance': 'Avg Available Balance',
+            'avg_dailyFoodBudget': 'Avg Daily Food Budget',
+            'avg_weeklyExtraBudget': 'Avg Weekly Extra Budget'
+        };
+        
+        // Color configuration
+        const colors = {
+            'total_income': '#4CAF50',
+            'total_expense': '#F44336',
+            'total_net': '#2196F3',
+            'total_food_expense': '#FF9800',
+            'total_recreation_expense': '#9C27B0',
+            'total_shelter_expense': '#795548',
+            'total_education_expense': '#607D8B',
+            'avg_availableBalance': '#00BCD4',
+            'avg_dailyFoodBudget': '#E91E63',
+            'avg_weeklyExtraBudget': '#8BC34A'
+        };
+        
+        // Month order
+        const monthOrder = [
+            '2022-03', '2022-04', '2022-05', '2022-06', '2022-07', '2022-08', '2022-09', '2022-10', '2022-11', '2022-12',
+            '2023-01', '2023-02', '2023-03', '2023-04', '2023-05'
+        ];
+        
+        let allData = [];
+        let filteredData = [];
+        
+        // Load data
+        d3.csv('participant_monthly_stats.csv').then(data => {
+            allData = data;
+            updateChart();
+        }).catch(error => {
+            console.error('Data loading failed:', error);
+            document.getElementById('chart').innerHTML = '<div class="no-data">Data loading failed, please ensure participant_monthly_stats.csv exists</div>';
+        });
+        
+        // Get selected metrics
+        function getSelectedMetrics() {
+            const checkboxes = document.querySelectorAll('.metric-item input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+        
+        // Filter data
+        function filterData() {
+            const education = document.getElementById('educationFilter').value;
+            const ageGroup = document.getElementById('ageGroupFilter').value;
+            const householdType = document.getElementById('familySizeFilter').value;
+            
+            filteredData = allData.filter(d => {
+                let pass = true;
+                if (education !== 'all' && d.educationLevel !== education) pass = false;
+                if (ageGroup !== 'all' && d.age_group !== ageGroup) pass = false;
+                if (householdType !== 'all' && d.household_type !== householdType) pass = false;
+                return pass;
+            });
+            
+            return filteredData;
+        }
+        
+        // Calculate monthly averages
+        function calculateMonthlyAverages(data, metrics) {
+            const result = [];
+            
+            monthOrder.forEach(month => {
+                const monthData = data.filter(d => d.month === month);
+                if (monthData.length > 0) {
+                    const avgPoint = { month: month, count: monthData.length };
+                    metrics.forEach(metric => {
+                        const values = monthData.map(d => parseFloat(d[metric]) || 0);
+                        const sum = values.reduce((a, b) => a + b, 0);
+                        avgPoint[metric] = sum / values.length;
+                    });
+                    result.push(avgPoint);
+                }
+            });
+            
+            return result;
+        }
+        
+        // Update chart
+        function updateChart() {
+            const selectedMetrics = getSelectedMetrics();
+            if (selectedMetrics.length === 0) {
+                document.getElementById('chart').innerHTML = '<div class="no-data">Please select at least one metric</div>';
+                document.getElementById('legend').innerHTML = '';
+                document.getElementById('statsInfo').textContent = 'Please select metrics to display';
+                return;
+            }
+            
+            const filtered = filterData();
+            
+            if (filtered.length === 0) {
+                document.getElementById('chart').innerHTML = '<div class="no-data">No data matching filter criteria</div>';
+                document.getElementById('legend').innerHTML = '';
+                document.getElementById('statsInfo').textContent = 'No matching data for current filters';
+                return;
+            }
+            
+            const monthlyData = calculateMonthlyAverages(filtered, selectedMetrics);
+            
+            if (monthlyData.length === 0) {
+                document.getElementById('chart').innerHTML = '<div class="no-data">Insufficient data to generate chart</div>';
+                return;
+            }
+            
+            // Update statistics info
+            document.getElementById('statsInfo').textContent = 
+                `Filtered ${filtered.length} records from ${filtered.map(d => d.participantId).filter((v, i, a) => a.indexOf(v) === i).length} participants`;
+            
+            drawChart(monthlyData, selectedMetrics);
+            drawLegend(selectedMetrics);
+        }
+        
+        // Draw chart
+        function drawChart(data, metrics) {
+            const chartContainer = document.getElementById('chart');
+            chartContainer.innerHTML = '';
+            
+            const containerWidth = chartContainer.clientWidth;
+            const containerHeight = 500;
+            
+            const margin = { top: 30, right: 80, bottom: 50, left: 80 };
+            const width = containerWidth - margin.left - margin.right;
+            const height = containerHeight - margin.top - margin.bottom;
+            
+            const svg = d3.select('#chart')
+                .append('svg')
+                .attr('width', containerWidth)
+                .attr('height', containerHeight)
+                .append('g')
+                .attr('transform', `translate(${margin.left}, ${margin.top})`);
+            
+            // X axis
+            const x = d3.scalePoint()
+                .domain(monthOrder)
+                .range([0, width]);
+            
+            svg.append('g')
+                .attr('class', 'x-axis')
+                .attr('transform', `translate(0, ${height})`)
+                .call(d3.axisBottom(x).tickValues(monthOrder.filter((d, i) => i % 3 === 0)))
+                .selectAll('text')
+                .attr('fill', '#666')
+                .attr('font-size', '12px');
+            
+            svg.append('text')
+                .attr('class', 'x-axis-label')
+                .attr('x', width / 2)
+                .attr('y', height + 40)
+                .attr('text-anchor', 'middle')
+                .text('Month');
+            
+            // Find max and min values for all metrics
+            let allValues = [];
+            metrics.forEach(metric => {
+                data.forEach(d => {
+                    allValues.push(d[metric]);
+                });
+            });
+            
+            const yMax = d3.max(allValues);
+            const yMin = d3.min(allValues);
+            
+            // Y axis
+            const y = d3.scaleLinear()
+                .domain([yMin, yMax])
+                .range([height, 0])
+                .nice();
+            
+            svg.append('g')
+                .attr('class', 'y-axis')
+                .call(d3.axisLeft(y).ticks(6).tickFormat(d3.format('.2s')))
+                .selectAll('text')
+                .attr('fill', '#666')
+                .attr('font-size', '12px');
+            
+            svg.append('text')
+                .attr('class', 'y-axis-label')
+                .attr('transform', 'rotate(-90)')
+                .attr('x', -height / 2)
+                .attr('y', -50)
+                .attr('text-anchor', 'middle')
+                .text('Value (Average)');
+            
+            // Grid lines
+            svg.append('g')
+                .attr('class', 'grid')
+                .attr('transform', `translate(0, ${height})`)
+                .call(d3.axisBottom(x)
+                    .tickValues(monthOrder)
+                    .tickSize(-height)
+                    .tickFormat('')
+                )
+                .selectAll('line')
+                .attr('class', 'grid-line');
+            
+            svg.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .ticks(6)
+                    .tickSize(-width)
+                    .tickFormat('')
+                )
+                .selectAll('line')
+                .attr('class', 'grid-line');
+            
+            // Tooltip
+            const tooltip = d3.select('#tooltip');
+            
+            // Draw lines
+            metrics.forEach(metric => {
+                const line = d3.line()
+                    .x(d => x(d.month))
+                    .y(d => y(d[metric]))
+                    .defined(d => d[metric] !== undefined);
+                
+                const path = svg.append('path')
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('d', line)
+                    .attr('stroke', colors[metric])
+                    .attr('id', `line-${metric}`);
+                
+                // Draw data points
+                svg.selectAll(`.dot-${metric}`)
+                    .data(data)
+                    .enter()
+                    .append('circle')
+                    .attr('class', `dot dot-${metric}`)
+                    .attr('cx', d => x(d.month))
+                    .attr('cy', d => y(d[metric]))
+                    .attr('r', 4)
+                    .attr('stroke', colors[metric])
+                    .attr('fill', 'white')
+                    .on('mouseover', function(event, d) {
+                        // Highlight all data points for this month
+                        svg.selectAll('.dot')
+                            .filter(dot => dot.month === d.month)
+                            .attr('r', 6);
+                        
+                        // Build tooltip content showing all metrics for this month
+                        let tooltipContent = `<strong style="font-size:14px;">Month: ${d.month}</strong><br/>
+                            <span style="color:#666;">Sample Count: ${d.count}</span><br/><hr style="margin:5px 0;border-color:#eee;">`;
+                        
+                        metrics.forEach(m => {
+                            const value = d[m];
+                            const formattedValue = d3.format(',.2f')(value);
+                            tooltipContent += `
+                                <div style="display:flex;align-items:center;margin:3px 0;">
+                                    <span style="background-color:${colors[m]};width:12px;height:3px;display:inline-block;margin-right:6px;"></span>
+                                    <span>${metricNames[m]}: <strong>${formattedValue}</strong></span>
+                                </div>`;
+                        });
+                        
+                        tooltip
+                            .html(tooltipContent)
+                            .style('left', (event.pageX + 15) + 'px')
+                            .style('top', (event.pageY - 10) + 'px')
+                            .attr('class', 'tooltip active');
+                    })
+                    .on('mouseout', function(event, d) {
+                        // Remove highlight
+                        svg.selectAll('.dot').attr('r', 4);
+                        tooltip.attr('class', 'tooltip');
+                    });
+            });
+        }
+        
+        // Draw legend
+        function drawLegend(metrics) {
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+            
+            metrics.forEach(metric => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `
+                    <div class="legend-color" style="background-color: ${colors[metric]}"></div>
+                    <span>${metricNames[metric]}</span>
+                `;
+                legendContainer.appendChild(item);
+            });
+        }
+        
+        // Listen for filter changes
+        document.getElementById('educationFilter').addEventListener('change', updateChart);
+        document.getElementById('ageGroupFilter').addEventListener('change', updateChart);
+        document.getElementById('familySizeFilter').addEventListener('change', updateChart);
+        
+        // Listen for metric selection changes
+        document.querySelectorAll('.metric-item input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateChart);
+        });
+        
+        // Redraw on window resize
+        window.addEventListener('resize', updateChart);
+    </script>
+</body>
+</html>
